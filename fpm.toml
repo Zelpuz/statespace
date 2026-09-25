@@ -1,0 +1,27 @@
+name = "statespace"
+version = "0.1.0"
+license = "license"
+author = "zelpuz"
+maintainer = "td.edwards@yahoo.com"
+copyright = "Copyright 2026, zelpuz"
+[build]
+auto-executables = true
+auto-tests = true
+auto-examples = true
+module-naming = false
+link = ["lapack", "blas"]
+[install]
+library = false
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"
+
+[dependencies]
+# Modern Fortran port of L-BFGS-B 3.0 (Nocedal & Morales), BSD-3.
+lbfgsb.git = "https://github.com/jacobwilliams/lbfgsb"
+lbfgsb.rev = "ce1a9322016d6f31b652393e000a914b63af6fef"
+
+[dev-dependencies]
+test-drive.git = "https://github.com/fortran-lang/test-drive"
+test-drive.rev = "c506771aefd594e7e372240a8027b3fd06d61264"  # v0.6.1
