@@ -1,0 +1,49 @@
+Benchmarking (DK §3.10.2)
+=========================
+
+Monthly survey values :math:`y_t`, subject to survey error, and annual
+totals :math:`x_i` of the true values, known exactly (benchmarks). DK's
+model (DK eq. 3.48) is
+
+.. math::
+
+   y_t = \mu_t + \gamma_t + \delta_t w_t + \varepsilon_t + \sigma^s_t \xi^s_t,
+
+with an integrated random walk trend, a dummy seasonal, a calendar effect
+whose coefficient changes each January, an irregular and an AR(1) survey
+error with known standard deviation :math:`\sigma^s_t`.
+
+The series is arranged as :math:`y_1, \dots, y_{12}, x_1, y_{13}, \dots`,
+with the state
+
+.. math::
+
+   \alpha_t = (\mu_t, \dots, \mu_{t-11}, \gamma_t, \dots, \gamma_{t-11},
+              \delta_t, \varepsilon_t, \dots, \varepsilon_{t-11}, \xi^s_t)',
+
+so that both kinds of observation are exact linear functions of the state
+(H = 0). From December to the benchmark point the transition is the
+identity; from the benchmark point to January it is the monthly one with
+the yearly change of :math:`\delta`. The system matrices vary over time.
+
+DK give no data; the example simulates them from the model with known
+parameters.
+
+Results
+-------
+
+The smoothed true values add up to every annual total to within 1e-12. Their
+root mean squared error against the simulated truth is 0.53 with the
+benchmarks and 0.74 without, against 1.07 for the raw survey values.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_3_10_2_benchmarking.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_3_10_2_benchmarking.txt
+   :language: text

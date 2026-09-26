@@ -1,0 +1,36 @@
+Box-Jenkins analysis of Internet use (DK §8.4)
+==============================================
+
+ARMA(p, q) models, p, q = 0, ..., 5, for the first differences of the
+number of users logged on to an Internet server each minute (Makridakis,
+Wheelwright and Hyndman 1998), in state space form (DK §3.4), compared by
+AIC; then again with 14 observations treated as missing, and forecasts
+with 50% intervals from the ARMA(1, 1) model.
+
+Results
+-------
+
+The log likelihoods agree with statsmodels' SARIMAX to four decimals, with
+and without the missing observations; for example -254.1497 and -225.7704
+for the ARMA(1, 1). Higher-order models can have several local optima,
+where different optimizers stop at different points.
+
+DK's tables use a scale for the AIC that we could not identify: for the
+complete series they are close to :math:`n^{-1}[-\log L + 2(p + q)]`, but
+no simple formula fits the table with missing observations, and DK report
+optimizer failures for several models. This page uses DK's own formula
+(DK §7.4), :math:`n^{-1}[-2\log L + 2w]`. By it, ARMA(3, 0), ARMA(1, 1) and
+some higher-order models lie within 0.03 of each other, the conclusion DK
+draw.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_8_4_internet.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_8_4_internet.txt
+   :language: text

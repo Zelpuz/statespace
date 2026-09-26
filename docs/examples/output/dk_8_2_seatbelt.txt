@@ -1,0 +1,16 @@
+Basic structural model (DK 8.2)
+      sigma2.irregular  3.415964E-03   (q-ratio  1.000000)
+          sigma2.level  9.358790E-04   (q-ratio  0.273972)
+       sigma2.seasonal  5.009770E-07   (q-ratio  0.000147)
+  log likelihood      168.859   (d = 12)
+  prediction error variance   0.00625827
+
+With petrol price and the seat belt law
+      sigma2.irregular  3.786229E-03   (q-ratio  1.000000)
+          sigma2.level  2.676893E-04   (q-ratio  0.070701)
+       sigma2.seasonal  1.161856E-06   (q-ratio  0.000307)
+  log likelihood      175.779   (d = 170)
+  prediction error variance: none (time-varying Z, no steady state)
+                  coef        rmse     t-value
+  petrol      -0.29140     0.09832    -2.96380
+  law 83.2    -0.23774     0.04632    -5.13277

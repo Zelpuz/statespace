@@ -1,0 +1,44 @@
+Dynamic factor analysis of the yield curve (DK §8.6)
+====================================================
+
+The dynamic Nelson-Siegel model (Nelson and Siegel 1987; Diebold and Li
+2006), a dynamic factor model (DK §3.7):
+
+.. math::
+
+   y_t = \Lambda(\lambda) f_t + \varepsilon_t, \quad
+   \varepsilon_t \sim N(0, \sigma^2 I), \qquad
+   f_{t+1} = \Phi f_t + \eta_t, \quad \eta_t \sim N(0, \Sigma_\eta),
+
+with level, slope and curvature factors and the Nelson-Siegel loadings for
+each maturity. The model is written as an extension of ``ssm_model_t``,
+the way to define models that the components do not cover.
+
+Data
+----
+
+DK use the yields of Diebold and Li, 17 maturities from licensed data. This
+example uses the public-domain constant-maturity yields of the Federal
+Reserve for the same months, January 1985 to December 2000, at 8
+maturities (``data/us_yields.csv``), so its estimates differ from DK's.
+
+Results
+-------
+
+The estimated decay :math:`\hat\lambda = 0.079` is close to DK's 0.078, and
+the persistence of the factors, :math:`\hat\Phi_{11} = 0.994` and
+:math:`\hat\Phi_{22} = 0.941`, to DK's 0.994 and 0.939. Collapsing the
+8 observations to the 3 factors (DK §6.5), as DK do, gives the same log
+likelihood and smoothed factors to 1e-12.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_8_6_yield_curve.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_8_6_yield_curve.txt
+   :language: text

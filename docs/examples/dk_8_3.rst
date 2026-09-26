@@ -1,0 +1,46 @@
+Front and rear seat passengers (DK §8.3)
+========================================
+
+The log of monthly front and rear seat passengers killed or seriously
+injured, modelled jointly: each series has a local level, a fixed
+trigonometric seasonal and an irregular, and the level and irregular
+disturbances are correlated across the series (DK §3.3). Rear seat
+passengers were not covered by the seat belt law, so they serve as a
+control group (Harvey 1996).
+
+Five models: before 1983 with a full-rank and a rank-one level covariance,
+then all data with the law in both series, in the front seat series only,
+and the latter with a rank-one level covariance. The rank-one models use a
+common level with an estimated loading and an intercept for the rear seat
+series (DK §3.3.2).
+
+Results
+-------
+
+All five models match DK to every printed digit, including the intervention
+coefficients: for example front seat -0.35630 (rmse 0.03655) with the rear
+seat series as control, and -0.41557 (0.02621) with proportional levels.
+The difference in log likelihood between models 1 and 2 is 2.689, as in DK.
+
+Three points about DK's printed values:
+
+* DK's text includes km travelled and the petrol price as regressors, but
+  the printed estimates are those of the model without them. With the
+  regressors the estimates differ; without them all five models match.
+* The printed exponents are one too small: the irregular variances are
+  :math:`\times 10^{-3}`, the level variances :math:`\times 10^{-4}`.
+* Two covariances are misprinted: model 1's level covariance is 2.933, not
+  2.993, and model 3's irregular covariance 4.593, not 4.493. DK's own
+  correlations, 0.893 and 0.660, imply the corrected values.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_8_3_passengers.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_8_3_passengers.txt
+   :language: text

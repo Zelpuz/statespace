@@ -1,0 +1,32 @@
+1. Before 1983, full-rank level covariance
+  Sigma_eps x 1e3:    5.006   4.569   9.143   rho  0.675
+  Sigma_eta x 1e4:    4.834   2.933   2.234   rho  0.892
+  log likelihood      277.325
+
+2. Before 1983, rank-one level covariance
+  Sigma_eps x 1e3:    5.062   4.791  10.023   rho  0.673
+  Sigma_eta x 1e4:    4.802   2.792   1.623   rho  1.000
+  log likelihood      274.636
+  log likelihood below model 1:      2.689
+
+3. All data, law in both series
+  Sigma_eps x 1e3:    5.135   4.593   9.419   rho  0.660
+  Sigma_eta x 1e4:    4.896   3.025   2.317   rho  0.898
+  log likelihood      317.172
+       law        coef        rmse     t-value
+     front    -0.32799     0.05699    -5.75497
+     rear      0.03376     0.05025     0.67185
+
+4. All data, law in the front seat series
+  Sigma_eps x 1e3:    5.147   4.588   9.380   rho  0.660
+  Sigma_eta x 1e4:    4.754   2.926   2.282   rho  0.888
+  log likelihood      319.945
+       law        coef        rmse     t-value
+     front    -0.35630     0.03655    -9.74869
+
+5. As 4, rank-one level covariance
+  Sigma_eps x 1e3:    5.206   4.789  10.242   rho  0.656
+  Sigma_eta x 1e4:    4.970   2.860   1.646   rho  1.000
+  log likelihood      315.895
+       law        coef        rmse     t-value
+     front    -0.41557     0.02621   -15.85328

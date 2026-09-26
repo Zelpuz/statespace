@@ -25,4 +25,6 @@ wheel.py-api = "py3"
 sdist.exclude = ["build", ".venv", "ref", "private", "data/seatbelts.csv", "data/wwwusage.csv", "data/mcycle.csv", "test/fixtures/__pycache__"]
 
 [tool.pytest.ini_options]
-testpaths = ["python/tests"]
+testpaths = ["python/tests", "python/ssfortran"]
+addopts = "--doctest-modules"
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]

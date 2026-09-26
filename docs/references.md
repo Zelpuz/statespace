@@ -46,6 +46,10 @@ refer to it.
   [doi:10.1093/biomet/71.2.403](https://doi.org/10.1093/biomet/71.2.403)
 - Nelson, C. R. and Siegel, A. F. (1987). Parsimonious modeling of yield curves.
   *Journal of Business* 60(4), 473–489. [doi:10.1086/296409](https://doi.org/10.1086/296409)
+- Thompson, I. J. and Barnett, A. R. (1986). Coulomb and Bessel functions of complex
+  arguments and order. *Journal of Computational Physics* 64(2), 490–509.
+  [doi:10.1016/0021-9991(86)90046-X](https://doi.org/10.1016/0021-9991(86)90046-X)
+  (The modified Lentz method for the continued fractions in `statespace_special`.)
 - Wahba, G. (1978). Improper priors, spline smoothing and the problem of guarding
   against model errors in regression. *Journal of the Royal Statistical Society,
   Series B* 40(3), 364–372.

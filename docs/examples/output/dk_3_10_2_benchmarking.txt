@@ -1,0 +1,4 @@
+largest |sum of smoothed y* over a year - benchmark|:   9.09E-13
+RMSE of smoothed y*, with benchmarks:      0.5303
+RMSE of smoothed y*, without benchmarks:   0.7400
+RMSE of the raw survey values:             1.0718

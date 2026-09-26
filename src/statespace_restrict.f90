@@ -10,8 +10,9 @@
 !> as a missing observation). The filtered and smoothed states of the result
 !> satisfy the active restrictions exactly. Its log likelihood includes the
 !> restriction rows, so estimate parameters with the unrestricted model.
-!> Exact restrictions give zero-variance observations, which the univariate
-!> treatment (FILTER_UNIVARIATE) handles most robustly.
+!> Exact restrictions give zero-variance observations, which make F_t
+!> singular once a restricted direction has no state noise; filter the
+!> result with the univariate treatment (FILTER_UNIVARIATE).
 module statespace_restrict
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM
   use statespace_rep, only: ssm_rep_t, tidx

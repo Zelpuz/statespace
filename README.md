@@ -24,6 +24,8 @@ library; `ssfortran` is its Python package.
   continuous-time components and splines. Components apply to one series or several
   (SUTSE), and can load on common signals.
 
+The documentation (user guide, examples, design notes, and Python, Fortran and C
+references) builds with `make -C docs html`; see [docs/install.rst](docs/install.rst).
 The illustrations of DK chapter 8 are reproduced in `example/`. Differences from
 statsmodels' `tsa.statespace` are listed in
 [docs/statsmodels_differences.md](docs/statsmodels_differences.md).
