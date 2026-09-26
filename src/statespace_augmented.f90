@@ -128,8 +128,8 @@ contains
   subroutine augmented_smoother(rep, res, alphahat, V, info)
     type(ssm_rep_t), intent(in) :: rep
     type(augmented_result_t), intent(in) :: res
-    real(dp), intent(out) :: alphahat(:, :)    !< (m, n)
-    real(dp), intent(out) :: V(:, :, :)        !< (m, m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
+    real(dp), intent(out), contiguous :: V(:, :, :)        !< (m, m, n)
     integer, intent(out) :: info
     type(ssm_rep_t) :: star
     type(smoother_result_t) :: sres

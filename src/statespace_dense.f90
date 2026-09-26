@@ -29,8 +29,8 @@ contains
   subroutine dense_loglike_smooth(rep, llf, alphahat, V, info)
     type(ssm_rep_t), intent(in) :: rep
     real(dp), intent(out) :: llf
-    real(dp), intent(out) :: alphahat(:, :)     !< (m, n)
-    real(dp), intent(out) :: V(:, :, :)         !< (m, m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)     !< (m, n)
+    real(dp), intent(out), contiguous :: V(:, :, :)         !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), mu_a(:), Va(:, :), W(:, :)
     real(dp), allocatable :: Zb(:, :), Omega(:, :), mu_y(:), yv(:), e(:), VZ(:, :), post(:, :)

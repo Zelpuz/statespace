@@ -69,7 +69,11 @@ contains
                 new_unittest("univariate_mv_stationary", test_uv_mv_stationary), &
                 new_unittest("stationary_init_rejects_unit_root", test_nonstationary), &
                 new_unittest("loglikelihood_burn", test_burn), &
-                new_unittest("validate_errors", test_validate) &
+                new_unittest("validate_errors", test_validate), &
+                new_unittest("steady_state_matches_full", test_steady_mv), &
+                new_unittest("steady_state_missing", test_steady_missing), &
+                new_unittest("steady_state_after_diffuse", test_steady_diffuse), &
+                new_unittest("steady_state_time_varying_c_d", test_steady_cd) &
                 ]
   end subroutine collect_filter
 
@@ -1017,4 +1021,132 @@ contains
     call rep%validate(info)
     call check(error, info, SS_OK, "missing data is valid")
   end subroutine test_validate
+
+  !> The steady-state shortcut (DK 4.3.4) against the full recursion
+  !> (tol_steady < 0): filter and smoother output and loglike.
+  subroutine check_steady_pair(error, rep, t_min)
+    type(error_type), allocatable, intent(out) :: error
+    type(ssm_rep_t), intent(in) :: rep
+    integer, intent(in) :: t_min            !< the shortcut must start after this
+    type(ssm_rep_t) :: full
+    type(filter_result_t) :: f1, f2
+    type(smoother_result_t) :: s1, s2
+    real(dp) :: s1_scale, s2_scale
+    integer :: info
+
+    full = rep
+    full%tol_steady = -1.0_dp
+    call kalman_filter(rep, f1, info)
+    call check(error, info, SS_OK, "filter")
+    if (allocated(error)) return
+    call kalman_filter(full, f2, info)
+    call check(error, f1%t_steady > t_min .and. f1%t_steady < rep%nobs / 2, &
+               "steady state used from a sensible period")
+    if (allocated(error)) return
+    call check(error, f2%t_steady == 0, "no steady state when disabled")
+    if (allocated(error)) return
+    call check_close(error, [f1%llf, loglike(rep, info)], [f2%llf, loglike(full, info)], "llf")
+    if (allocated(error)) return
+    call check_close(error, [loglike_concentrated(rep, s1_scale, info)], &
+                     [loglike_concentrated(full, s2_scale, info)], "concentrated llf")
+    if (allocated(error)) return
+    call check_close(error, [s1_scale], [s2_scale], "concentrated scale")
+    if (allocated(error)) return
+    call check_close(error, pack(f1%a, .true.), pack(f2%a, .true.), "a")
+    if (allocated(error)) return
+    call check_close(error, pack(f1%P, .true.), pack(f2%P, .true.), "P")
+    if (allocated(error)) return
+    call check_close(error, pack(f1%v, .true.), pack(f2%v, .true.), "v")
+    if (allocated(error)) return
+    call check_close(error, pack(f1%F, .true.), pack(f2%F, .true.), "F")
+    if (allocated(error)) return
+    call check_close(error, pack(f1%K, .true.), pack(f2%K, .true.), "K")
+    if (allocated(error)) return
+    call state_smoother(rep, f1, s1, info)
+    call state_smoother(full, f2, s2, info)
+    call check_close(error, pack(s1%alphahat, .true.), pack(s2%alphahat, .true.), "alphahat")
+    if (allocated(error)) return
+    call check_close(error, pack(s1%V, .true.), pack(s2%V, .true.), "V")
+  end subroutine check_steady_pair
+
+  !> The mv_invariant model (correlated H) on a longer simulated series.
+  function long_mv(n) result(rep)
+    integer, intent(in) :: n
+    type(ssm_rep_t) :: rep
+    type(fixture_t) :: fx
+    real(dp), allocatable :: e(:)
+
+    fx = load_fixture("test/fixtures/mv_invariant.txt")
+    rep = rep_from_fixture(fx)
+    allocate (e(rep%k_endog * n))
+    call draw_standard_normal(e)
+    rep%y = reshape(e, [rep%k_endog, n])
+    rep%nobs = n
+  end function long_mv
+
+  subroutine test_steady_mv(error)
+    type(error_type), allocatable, intent(out) :: error
+
+    call check_steady_pair(error, long_mv(400), 0)
+  end subroutine test_steady_mv
+
+  !> Missing observations after convergence end the steady state; the full
+  !> recursion resumes and converges again.
+  subroutine test_steady_missing(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(ssm_rep_t) :: rep
+    type(filter_result_t) :: fres
+    integer :: info
+
+    rep = long_mv(400)
+    rep%y(:, 250) = ieee_value(1.0_dp, ieee_quiet_nan)
+    rep%y(1, 300) = ieee_value(1.0_dp, ieee_quiet_nan)
+    call kalman_filter(rep, fres, info)
+    call check(error, fres%t_steady < 250, "steady before the gap")
+    if (allocated(error)) return
+    call check_steady_pair(error, rep, 0)
+  end subroutine test_steady_missing
+
+  !> Exact diffuse local linear trend: the shortcut starts only after the
+  !> diffuse period.
+  subroutine test_steady_diffuse(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(component_holder_t) :: comps(2)
+    type(structural_model_t) :: mod
+    type(filter_result_t) :: fres
+    real(dp) :: y(1, 400), e(400)
+    integer :: info, t
+
+    call draw_standard_normal(e)
+    y(1, 1) = e(1)
+    do t = 2, 400
+      y(1, t) = y(1, t - 1) + 0.1_dp * t / 400 + e(t)
+    end do
+    allocate (irregular_t :: comps(1)%c)
+    allocate (trend_t :: comps(2)%c)
+    mod = structural_model(y, comps, info)
+    call mod%update([1.0_dp, 0.1_dp, 0.01_dp])
+    call kalman_filter(mod%rep, fres, info)
+    call check_steady_pair(error, mod%rep, fres%nobs_diffuse)
+  end subroutine test_steady_diffuse
+
+  !> Time-varying intercepts c_t and d_t do not affect P, so the shortcut
+  !> still applies; its a and v must use each period's c and d.
+  subroutine test_steady_cd(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(ssm_rep_t) :: rep
+    real(dp), allocatable :: e(:)
+    integer :: n
+
+    rep = long_mv(400)
+    n = rep%nobs
+    allocate (e(rep%k_endog * n))
+    call draw_standard_normal(e)
+    rep%d = reshape(e, [rep%k_endog, n])
+    deallocate (e)
+    allocate (e(rep%k_states * n))
+    call draw_standard_normal(e)
+    rep%c = 0.1_dp * reshape(e, [rep%k_states, n])
+    call check_steady_pair(error, rep, 0)
+  end subroutine test_steady_cd
 end module test_filter

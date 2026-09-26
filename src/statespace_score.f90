@@ -15,7 +15,9 @@
 !> model's `update` sets, so no extra user code is needed. DK recommend
 !> numerical scores for parameters in Z_t and T_t: if a parameter moves Z, T,
 !> c, d, a_1 or P_inf, SS_ERR_UNSUPPORTED is returned (use numerical
-!> derivatives). With missing
+!> derivatives), unless `analytic` is given: then such parameters are marked
+!> false there (score 0) and the others are still computed, for a hybrid
+!> gradient. With missing
 !> data the eps moments of the missing elements are the conditional ones
 !> (see `smoother_result_t`), which this identity needs. It also holds for the
 !> diffuse log likelihood (DK 7.3.5), and for a concentrated scale (envelope
@@ -36,12 +38,15 @@ contains
 
   !> Score of the log likelihood at constrained `params`. `llf` receives the
   !> log likelihood at `params` from the same filter run.
-  subroutine analytic_score(model, params, score, llf, info)
+  subroutine analytic_score(model, params, score, llf, info, analytic)
     class(ssm_model_t), intent(inout) :: model
-    real(dp), intent(in) :: params(:)
-    real(dp), intent(out) :: score(:)
+    real(dp), intent(in), contiguous :: params(:)
+    real(dp), intent(out), contiguous :: score(:)
     real(dp), intent(out) :: llf
     integer, intent(out) :: info
+    !> Which parameters the formula covers; if absent, any other parameter
+    !> makes the whole call SS_ERR_UNSUPPORTED.
+    logical, intent(out), optional :: analytic(:)
     type(ssm_rep_t) :: rep, plus, minus
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
@@ -54,6 +59,7 @@ contains
 
     score = 0.0_dp
     llf = 0.0_dp
+    if (present(analytic)) analytic = .false.
     k = size(params)
     m = model%rep%k_states
     call model%rep_at(params, rep, info)
@@ -91,20 +97,25 @@ contains
       call minus%initial_state(a1m, Psm, Pim, info)
       if (info /= SS_OK) exit
 
-      info = SS_ERR_UNSUPPORTED
       if (any(plus%Z /= minus%Z) .or. any(plus%T /= minus%T) .or. &
           any(plus%c /= minus%c) .or. any(plus%d /= minus%d) .or. any(a1p /= a1m) .or. &
-          any(Pip /= Pim)) exit
-      info = SS_OK
+          any(Pip /= Pim)) then
+        if (present(analytic)) cycle
+        info = SS_ERR_UNSUPPORTED
+        exit
+      end if
 
       dH = scale * (plus%H - minus%H) / (2.0_dp * h)
       dW = scale * (rqr(plus) - rqr(minus)) / (2.0_dp * h)
       dPs = scale * (Psp - Psm) / (2.0_dp * h)
       ! A parameter moving a singular H_t or Q_t is outside this formula.
-      info = SS_ERR_UNSUPPORTED
-      if (moves_singular(dH, h_singular)) exit
-      info = SS_OK
+      if (moves_singular(dH, h_singular)) then
+        if (present(analytic)) cycle
+        info = SS_ERR_UNSUPPORTED
+        exit
+      end if
       score(i) = 0.5_dp * (contract(dH, Gh) + contract(dW, Gw) + sum(dPs * G1))
+      if (present(analytic)) analytic(i) = .true.
     end do
     call model%update(params)
     if (info /= SS_OK) score = 0.0_dp
@@ -115,7 +126,7 @@ contains
   subroutine score_weights(rep, sres, a1, Pstar, Gh, Gw, G1, h_singular, info)
     type(ssm_rep_t), intent(in) :: rep
     type(smoother_result_t), intent(in) :: sres
-    real(dp), intent(in) :: a1(:), Pstar(:, :)
+    real(dp), intent(in), contiguous :: a1(:), Pstar(:, :)
     real(dp), allocatable, intent(out) :: Gh(:, :, :), Gw(:, :, :), G1(:, :)
     logical, allocatable, intent(out) :: h_singular(:)   !< (n)
     integer, intent(out) :: info
@@ -183,7 +194,7 @@ contains
   !> sum_t tr(dX_t G_t) for symmetric G_t, with dX time-invariant (one slice)
   !> or time-varying.
   real(dp) function contract(dX, G)
-    real(dp), intent(in) :: dX(:, :, :), G(:, :, :)
+    real(dp), intent(in), contiguous :: dX(:, :, :), G(:, :, :)
     integer :: t
 
     contract = 0.0_dp
@@ -198,7 +209,7 @@ contains
 
   !> True if A is positive semi-definite (LDL' pivots >= 0).
   logical function is_psd(A)
-    real(dp), intent(in) :: A(:, :)
+    real(dp), intent(in), contiguous :: A(:, :)
     real(dp), allocatable :: L(:, :), D(:)
     integer :: i
 
@@ -214,7 +225,7 @@ contains
   end function is_psd
 
   pure function diag(x) result(A)
-    real(dp), intent(in) :: x(:)
+    real(dp), intent(in), contiguous :: x(:)
     real(dp) :: A(size(x), size(x))
     integer :: i
 
@@ -226,7 +237,7 @@ contains
 
   !> True if dX is nonzero in a period flagged singular.
   logical function moves_singular(dX, singular)
-    real(dp), intent(in) :: dX(:, :, :)
+    real(dp), intent(in), contiguous :: dX(:, :, :)
     logical, intent(in) :: singular(:)
     integer :: t
 
@@ -240,7 +251,7 @@ contains
   end function moves_singular
 
   pure function outer(x) result(A)
-    real(dp), intent(in) :: x(:)
+    real(dp), intent(in), contiguous :: x(:)
     real(dp) :: A(size(x), size(x))
     integer :: j
 

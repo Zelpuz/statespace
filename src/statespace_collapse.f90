@@ -19,7 +19,7 @@
 module statespace_collapse
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_value, ieee_quiet_nan
   use statespace_kinds, only: dp, log2pi, SS_OK, SS_ERR_NOT_PD
-  use statespace_linalg, only: chol_inv, eye, symmetrize
+  use statespace_linalg, only: chol_inv, eye, symmetrize, gemv
   use statespace_rep, only: ssm_rep_t, tidx
   implicit none
   private
@@ -33,7 +33,7 @@ contains
   subroutine collapse_observations(rep, crep, llf_adjust, info)
     type(ssm_rep_t), intent(in) :: rep
     type(ssm_rep_t), intent(out) :: crep
-    real(dp), intent(out) :: llf_adjust(:)   !< (n)
+    real(dp), intent(out), contiguous :: llf_adjust(:)   !< (n)
     integer, intent(out) :: info
     real(dp), allocatable :: Zo(:, :), Hinv(:, :), ZtHinv(:, :), Hbar(:, :), yo(:), ybar(:), e(:)
     integer, allocatable :: idx(:)
@@ -78,7 +78,12 @@ contains
         return
       end if
       ybar = matmul(Hbar, matmul(ZtHinv, yo))
-      e = yo - matmul(Zo, ybar)
+      ! e is sized explicitly: gfortran -O2 mis-sizes the inlined matmul
+      ! in a reallocating assignment whose shape changes between periods.
+      if (allocated(e)) deallocate (e)
+      allocate (e(n_o))
+      e = yo
+      call gemv('N', -1.0_dp, Zo, ybar, 1.0_dp, e)
 
       crep%y(:, t) = ybar
       crep%H(:, :, t) = Hbar

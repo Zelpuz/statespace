@@ -59,6 +59,7 @@ module statespace_filter
   type :: filter_result_t
     integer :: k_endog = 0, k_states = 0, nobs = 0
     integer :: nobs_diffuse = 0       !< periods with a diffuse state (DK's d)
+    integer :: t_steady = 0           !< first period in the steady state (0: none; see tol_steady)
     integer, allocatable :: method(:)  !< (n) METHOD_* used for each period
     integer :: k_diffuse = 0          !< rank of P_inf,1
     real(dp), allocatable :: a(:, :)        !< (m, n+1)
@@ -102,8 +103,23 @@ module statespace_filter
     real(dp) :: llf_nq_t = 0.0_dp
     integer :: e_n = 0
     integer, allocatable :: e_idx(:)
-    real(dp), allocatable :: e_Z(:, :), e_sig2(:), e_v(:), e_Fstar(:), e_Finf(:)
+    !> e_Zt(:, i) is row i of Z* (stored by columns so each is contiguous)
+    real(dp), allocatable :: e_Zt(:, :), e_sig2(:), e_v(:), e_Fstar(:), e_Finf(:)
     real(dp), allocatable :: e_Mstar(:, :), e_Minf(:, :)
+    !> Cache of the transformed observation equation: e_Zt and e_sig2 and the
+    !> LDL factor L of H_oo stay valid while the slices of Z and H and the
+    !> missing pattern are unchanged; then only y is transformed.
+    logical :: c_valid = .false., c_diag = .false.
+    integer :: c_iz = 0, c_ih = 0
+    logical, allocatable :: c_obs(:)
+    real(dp), allocatable :: c_L(:, :), c_y(:, :)
+    real(dp), allocatable :: K0(:), K1(:)   !< univariate gains
+    !> Steady state: whether the model allows it, whether it is in effect,
+    !> the period t_ss whose F^-1, M = P Z' F^-1 and llf_nq it reuses.
+    logical :: can_steady = .false., steady = .false.
+    integer :: t_ss = 0
+    real(dp), allocatable :: ss_Finv(:, :), ss_M(:, :)
+    real(dp) :: ss_llf_nq = 0.0_dp
   end type filter_ws_t
 
 contains
@@ -143,6 +159,23 @@ contains
     do t = 1, n
       res%method(t) = period_method(rep, t, diffuse, res%Pinf(:, :, t))
       if (diffuse) res%nobs_diffuse = t
+      if (res%method(t) == METHOD_CONVENTIONAL .and. .not. diffuse) then
+        if (use_steady(rep, t, ws)) then
+          associate (ts => ws%t_ss)
+            call steady_step(rep, t, ws, res%a(:, t), res%yhat(:, t), res%v(:, t), &
+                             res%att(:, t), res%a(:, t + 1), res%llf_obs(t))
+            res%F(:, :, t) = res%F(:, :, ts)
+            res%Finv(:, :, t) = res%Finv(:, :, ts)
+            res%K(:, :, t) = res%K(:, :, ts)
+            res%Ptt(:, :, t) = res%Ptt(:, :, ts)
+            res%P(:, :, t + 1) = res%P(:, :, ts + 1)
+            res%Finf(:, :, t) = 0.0_dp
+            res%Pinf(:, :, t + 1) = 0.0_dp
+          end associate
+          if (res%t_steady == 0) res%t_steady = t
+          cycle
+        end if
+      end if
       select case (res%method(t))
       case (METHOD_UNIVARIATE)
         call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
@@ -173,6 +206,8 @@ contains
         if (info /= SS_OK) return
         res%Finf(:, :, t) = 0.0_dp
         res%Pinf(:, :, t + 1) = 0.0_dp
+        if (.not. diffuse) call check_steady(rep, t, ws, res%P(:, :, t), res%P(:, :, t + 1), &
+                                             res%Finv(:, :, t))
         if (diffuse) then
           call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
                                    res%yhat(:, t), res%v(:, t), res%F(:, :, t), res%Finf(:, :, t))
@@ -312,6 +347,20 @@ contains
     if (info /= SS_OK) return
     diffuse = sum(Pinft**2) > rep%tol_diffuse
     do t = 1, rep%nobs
+      if (.not. diffuse) then
+        if (use_steady(rep, t, ws)) then
+          ! P (Pt) stays at its steady-state value
+          call steady_step(rep, t, ws, at, yhat, v, att, anext, llf_t)
+          if (t > rep%loglikelihood_burn) then
+            llf = llf + llf_t
+            quad = quad + ws%quad_t
+            nstar = nstar + ws%nstar_t
+            if (present(llf_nq)) llf_nq = llf_nq + ws%llf_nq_t
+          end if
+          at = anext
+          cycle
+        end if
+      end if
       select case (period_method(rep, t, diffuse, Pinft))
       case (METHOD_UNIVARIATE)
         call univariate_step(rep, t, ws, diffuse, at, Pt, Pinft, att, Ptt, anext, Pnext, &
@@ -322,6 +371,7 @@ contains
       case default
         call filter_step(rep, t, ws, at, Pt, yhat, v, F, Finv, K, att, Ptt, anext, Pnext, &
                          llf_t, info)
+        if (info == SS_OK .and. .not. diffuse) call check_steady(rep, t, ws, Pt, Pnext, Finv)
         if (diffuse) then
           it = tidx(size(rep%T, 3), t)
           call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), Pinft, 0.0_dp, ws%TP)
@@ -352,7 +402,7 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     logical, intent(in) :: diffuse
-    real(dp), intent(in) :: Pinf(:, :)
+    real(dp), intent(in), contiguous :: Pinf(:, :)
     real(dp), allocatable :: Zo(:, :), Fi(:, :), L(:, :), D(:)
     logical, allocatable :: obs(:)
     integer :: n_o, iz
@@ -398,8 +448,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
-    real(dp), intent(in) :: a(:), Pstar(:, :), Pinf(:, :)
-    real(dp), intent(out) :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
+    real(dp), intent(in), contiguous :: a(:), Pstar(:, :), Pinf(:, :)
+    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
     real(dp), intent(out) :: llf_t
     integer, intent(out) :: info
     real(dp), allocatable :: Zo(:, :), vo(:), Fs(:, :), F1(:, :), F2(:, :), Ms(:, :), Mi(:, :)
@@ -452,9 +502,76 @@ contains
     p = rep%k_endog; m = rep%k_states; r = rep%k_posdef
     allocate (ws%PZt(m, p), ws%M(m, p), ws%vz(p), ws%Finv_v(p), ws%TP(m, m), ws%RQ(m, r), &
               ws%RQR(m, m), ws%obs(p))
-    allocate (ws%e_idx(p), ws%e_Z(p, m), ws%e_sig2(p), ws%e_v(p), ws%e_Fstar(p), ws%e_Finf(p), &
+    allocate (ws%e_idx(p), ws%e_Zt(m, p), ws%e_sig2(p), ws%e_v(p), ws%e_Fstar(p), ws%e_Finf(p), &
               ws%e_Mstar(m, p), ws%e_Minf(m, p))
+    ws%can_steady = rep%tol_steady >= 0.0_dp .and. rep%filter_method /= FILTER_UNIVARIATE .and. &
+                    size(rep%Z, 3) == 1 .and. size(rep%H, 3) == 1 .and. size(rep%T, 3) == 1 .and. &
+                    size(rep%R, 3) == 1 .and. size(rep%Q, 3) == 1
+    if (ws%can_steady) allocate (ws%ss_Finv(p, p), ws%ss_M(m, p))
+    allocate (ws%c_obs(p), ws%c_L(p, p), ws%c_y(p, 1), ws%K0(m), ws%K1(m))
   end subroutine ws_init
+
+  !> After a conventional, fully observed, non-diffuse step at t from P to
+  !> Pnext: enter the steady state if P has converged (see tol_steady).
+  subroutine check_steady(rep, t, ws, P, Pnext, Finv)
+    type(ssm_rep_t), intent(in) :: rep
+    integer, intent(in) :: t
+    type(filter_ws_t), intent(inout) :: ws
+    real(dp), intent(in), contiguous :: P(:, :), Pnext(:, :), Finv(:, :)
+
+    if (.not. ws%can_steady .or. ws%steady) return
+    if (.not. all(ws%obs)) return
+    if (sum((Pnext - P)**2) > rep%tol_steady**2 * sum(Pnext**2)) return
+    ws%steady = .true.
+    ws%t_ss = t
+    ws%ss_Finv = Finv
+    ws%ss_M = ws%M
+    ws%ss_llf_nq = ws%llf_nq_t
+  end subroutine check_steady
+
+  !> Whether period t can use the steady state: it is in effect and y_t is
+  !> fully observed. A missing element ends it.
+  logical function use_steady(rep, t, ws)
+    type(ssm_rep_t), intent(in) :: rep
+    integer, intent(in) :: t
+    type(filter_ws_t), intent(inout) :: ws
+
+    use_steady = .false.
+    if (.not. ws%steady) return
+    if (any(ieee_is_nan(rep%y(:, t)))) then
+      ws%steady = .false.
+      return
+    end if
+    use_steady = .true.
+  end function use_steady
+
+  !> One steady-state step (DK 4.3.4): P, F and K are fixed, so only
+  !>   v = y - d - Z a,  a_t|t = a + M v,  a_t+1 = c + T a_t|t
+  !> and the log likelihood are computed, with M = P Z' F^-1.
+  subroutine steady_step(rep, t, ws, a, yhat, v, att, anext, llf_t)
+    type(ssm_rep_t), intent(in) :: rep
+    integer, intent(in) :: t
+    type(filter_ws_t), intent(inout) :: ws
+    real(dp), intent(in), contiguous :: a(:)
+    real(dp), intent(out), contiguous :: yhat(:), v(:), att(:), anext(:)
+    real(dp), intent(out) :: llf_t
+    integer :: id, ic
+
+    id = tidx(size(rep%d, 2), t)
+    ic = tidx(size(rep%c, 2), t)
+    yhat = rep%d(:, id)
+    call gemv('N', 1.0_dp, rep%Z(:, :, 1), a, 1.0_dp, yhat)
+    v = rep%y(:, t) - yhat
+    call gemv('N', 1.0_dp, ws%ss_Finv, v, 0.0_dp, ws%Finv_v)
+    att = a
+    call gemv('N', 1.0_dp, ws%ss_M, v, 1.0_dp, att)
+    anext = rep%c(:, ic)
+    call gemv('N', 1.0_dp, rep%T(:, :, 1), att, 1.0_dp, anext)
+    ws%quad_t = dot_product(v, ws%Finv_v)
+    ws%nstar_t = rep%k_endog
+    ws%llf_nq_t = ws%ss_llf_nq
+    llf_t = ws%ss_llf_nq - 0.5_dp * ws%quad_t
+  end subroutine steady_step
 
   !> Cache R Q R' for the slices of R and Q at time t.
   subroutine update_RQR(rep, t, ws)
@@ -478,8 +595,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
-    real(dp), intent(in) :: att(:), Ptt(:, :)
-    real(dp), intent(out) :: anext(:), Pnext(:, :)
+    real(dp), intent(in), contiguous :: att(:), Ptt(:, :)
+    real(dp), intent(out), contiguous :: anext(:), Pnext(:, :)
     integer :: it, ic
 
     it = tidx(size(rep%T, 3), t)
@@ -500,9 +617,9 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
-    real(dp), intent(in) :: a(:), P(:, :)
-    real(dp), intent(out) :: yhat(:), v(:), F(:, :), Finv(:, :), K(:, :)
-    real(dp), intent(out) :: att(:), Ptt(:, :), anext(:), Pnext(:, :)
+    real(dp), intent(in), contiguous :: a(:), P(:, :)
+    real(dp), intent(out), contiguous :: yhat(:), v(:), F(:, :), Finv(:, :), K(:, :)
+    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :)
     real(dp), intent(out) :: llf_t
     integer, intent(out) :: info
     integer :: iz, ih, it, id, nobs_t
@@ -573,11 +690,11 @@ contains
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
     logical, intent(in) :: diffuse
-    real(dp), intent(in) :: a(:), Pstar(:, :), Pinf(:, :)
-    real(dp), intent(out) :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
+    real(dp), intent(in), contiguous :: a(:), Pstar(:, :), Pinf(:, :)
+    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
     real(dp), intent(out) :: llf_t
     integer, intent(out) :: info
-    real(dp), allocatable :: Pinftt(:, :), K0(:), K1(:)
+    real(dp), allocatable :: Pinftt(:, :)
     real(dp) :: v, Fs, Fi, tol_Fs
     integer :: i, j, n_o, it
 
@@ -589,13 +706,12 @@ contains
     att = a
     Ptt = Pstar
     if (diffuse) Pinftt = Pinf
-    allocate (K0(rep%k_states), K1(rep%k_states))
     llf_t = 0.0_dp
     ws%quad_t = 0.0_dp
     ws%nstar_t = 0
     ws%llf_nq_t = 0.0_dp
     do i = 1, n_o
-      associate (z => ws%e_Z(i, :), Ms => ws%e_Mstar(:, i), Mi => ws%e_Minf(:, i))
+      associate (z => ws%e_Zt(:, i), Ms => ws%e_Mstar(:, i), Mi => ws%e_Minf(:, i))
         v = ws%e_v(i) - dot_product(z, att)
         call gemv('N', 1.0_dp, Ptt, z, 0.0_dp, Ms)
         Fs = max(dot_product(z, Ms) + ws%e_sig2(i), 0.0_dp)
@@ -611,20 +727,20 @@ contains
         ws%e_Finf(i) = Fi
 
         if (diffuse .and. Fi > rep%tol_diffuse) then
-          K0 = Mi / Fi
-          K1 = (Ms - K0 * Fs) / Fi
-          att = att + K0 * v
+          ws%K0 = Mi / Fi
+          ws%K1 = (Ms - ws%K0 * Fs) / Fi
+          att = att + ws%K0 * v
           do j = 1, rep%k_states
-            Ptt(:, j) = Ptt(:, j) - Ms * K0(j) - Mi * K1(j)
-            Pinftt(:, j) = Pinftt(:, j) - Mi * K0(j)
+            Ptt(:, j) = Ptt(:, j) - Ms * ws%K0(j) - Mi * ws%K1(j)
+            Pinftt(:, j) = Pinftt(:, j) - Mi * ws%K0(j)
           end do
           llf_t = llf_t - 0.5_dp * (log2pi + log(Fi))
           ws%llf_nq_t = ws%llf_nq_t - 0.5_dp * (log2pi + log(Fi))
         else if (Fs > tol_Fs) then
-          K0 = Ms / Fs
-          att = att + K0 * v
+          ws%K0 = Ms / Fs
+          att = att + ws%K0 * v
           do j = 1, rep%k_states
-            Ptt(:, j) = Ptt(:, j) - Ms * K0(j)
+            Ptt(:, j) = Ptt(:, j) - Ms * ws%K0(j)
           end do
           llf_t = llf_t - 0.5_dp * (log2pi + log(Fs) + v**2 / Fs)
           ws%quad_t = ws%quad_t + v**2 / Fs
@@ -649,7 +765,7 @@ contains
 
   !> Select the observed elements of y_t and, if their block of H_t is not
   !> diagonal, transform them (DK 6.4.3): H_oo = L D L', y* = L^-1 (y - d),
-  !> Z* = L^-1 Z, with variances D. Results go to ws%e_n, e_idx, e_Z,
+  !> Z* = L^-1 Z, with variances D. Results go to ws%e_n, e_idx, e_Zt,
   !> e_sig2, and e_v (holding y* until the step computes v).
   subroutine transform_observation(rep, t, ws)
     type(ssm_rep_t), intent(in) :: rep
@@ -665,8 +781,20 @@ contains
     n_o = count(ws%obs)
     ws%e_n = n_o
     if (n_o == 0) return
-    ws%e_idx(1:n_o) = pack([(i, i=1, rep%k_endog)], ws%obs)
 
+    if (ws%c_valid .and. iz == ws%c_iz .and. ih == ws%c_ih) then
+      if (all(ws%obs .eqv. ws%c_obs)) then
+        ! Same observation equation as last time: transform y only
+        associate (idx => ws%e_idx(1:n_o))
+          ws%c_y(1:n_o, 1) = rep%y(idx, t) - rep%d(idx, id)
+          if (.not. ws%c_diag) call solve_unit_lower(ws%c_L(1:n_o, 1:n_o), ws%c_y(1:n_o, :))
+          ws%e_v(1:n_o) = ws%c_y(1:n_o, 1)
+        end associate
+        return
+      end if
+    end if
+
+    ws%e_idx(1:n_o) = pack([(i, i=1, rep%k_endog)], ws%obs)
     associate (idx => ws%e_idx(1:n_o))
       Ho = rep%H(idx, idx, ih)
       Zo = rep%Z(idx, :, iz)
@@ -684,9 +812,15 @@ contains
         call solve_unit_lower(L, yo)
       end if
     end associate
-    ws%e_Z(1:n_o, :) = Zo
+    ws%e_Zt(:, 1:n_o) = transpose(Zo)
     ws%e_sig2(1:n_o) = D
     ws%e_v(1:n_o) = yo(:, 1)
+    ws%c_valid = .true.
+    ws%c_iz = iz
+    ws%c_ih = ih
+    ws%c_obs = ws%obs
+    ws%c_diag = all(L == eye(n_o))
+    ws%c_L(1:n_o, 1:n_o) = L
   end subroutine transform_observation
 
   !> Copy the per-element output of the last univariate step into `res`.
@@ -708,7 +842,7 @@ contains
     res%uv_Minf(:, :, t) = 0.0_dp
     if (n_o == 0) return
     res%uv_idx(1:n_o, t) = ws%e_idx(1:n_o)
-    res%uv_Z(1:n_o, :, t) = ws%e_Z(1:n_o, :)
+    res%uv_Z(1:n_o, :, t) = transpose(ws%e_Zt(:, 1:n_o))
     res%uv_sig2(1:n_o, t) = ws%e_sig2(1:n_o)
     res%uv_v(1:n_o, t) = ws%e_v(1:n_o)
     res%uv_Fstar(1:n_o, t) = ws%e_Fstar(1:n_o)
@@ -722,8 +856,8 @@ contains
   subroutine observation_moments(rep, t, a, P, Pinf, yhat, v, F, Finf)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
-    real(dp), intent(in) :: a(:), P(:, :), Pinf(:, :)
-    real(dp), intent(out) :: yhat(:), v(:), F(:, :), Finf(:, :)
+    real(dp), intent(in), contiguous :: a(:), P(:, :), Pinf(:, :)
+    real(dp), intent(out), contiguous :: yhat(:), v(:), F(:, :), Finf(:, :)
     real(dp), allocatable :: PZt(:, :)
     integer :: iz, ih, id
 
@@ -746,10 +880,10 @@ contains
   !> Inverse and log determinant of the observed submatrix of F, returned
   !> zero-padded to full size in Finv.
   subroutine observed_inverse(F, obs, nobs_t, Finv, logdet, info)
-    real(dp), intent(in) :: F(:, :)
+    real(dp), intent(in), contiguous :: F(:, :)
     logical, intent(in) :: obs(:)
     integer, intent(in) :: nobs_t
-    real(dp), intent(out) :: Finv(:, :)
+    real(dp), intent(out), contiguous :: Finv(:, :)
     real(dp), intent(out) :: logdet
     integer, intent(out) :: info
     real(dp), allocatable :: Fo(:, :)
@@ -796,8 +930,8 @@ contains
   !> role.
   subroutine steady_state(rep, P, F, info, tol, maxiter, niter)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(out) :: P(:, :)          !< (m, m) steady-state P
-    real(dp), intent(out) :: F(:, :)          !< (p, p) steady-state F
+    real(dp), intent(out), contiguous :: P(:, :)          !< (m, m) steady-state P
+    real(dp), intent(out), contiguous :: F(:, :)          !< (p, p) steady-state F
     integer, intent(out) :: info
     real(dp), intent(in), optional :: tol
     integer, intent(in), optional :: maxiter
@@ -870,14 +1004,14 @@ contains
   contains
 
     logical function converged(Xo, Xnew)
-      real(dp), intent(in) :: Xo(:, :), Xnew(:, :)
+      real(dp), intent(in), contiguous :: Xo(:, :), Xnew(:, :)
 
       converged = maxval(abs(Xnew - Xo)) <= tol_ * max(1.0_dp, maxval(abs(Xnew)))
     end function converged
 
     !> B^-1 C for square B.
     function inverse_times(B, C) result(D)
-      real(dp), intent(in) :: B(:, :), C(:, :)
+      real(dp), intent(in), contiguous :: B(:, :), C(:, :)
       real(dp), allocatable :: D(:, :)
 
       D = C

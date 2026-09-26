@@ -73,6 +73,13 @@ module statespace_rep
     !> Threshold on F_inf (and on ||P_inf||_F^2) for diffuse updates, as in
     !> statsmodels.
     real(dp) :: tol_diffuse = 1.0e-10_dp
+    !> Steady state (DK 4.3.4): in a time-invariant model (Z, H, T, R, Q),
+    !> once a conventional step leaves P almost unchanged,
+    !> ||P_t+1 - P_t||_F <= tol_steady ||P_t+1||_F, then P, F, F^-1 and K
+    !> are held fixed and only a_t and v_t are updated, as long as y_t is
+    !> fully observed. A missing observation restarts the full recursion.
+    !> A negative value turns the shortcut off.
+    real(dp) :: tol_steady = 1.0e-15_dp
 
     !> Number of leading observations excluded from the total log likelihood.
     integer :: loglikelihood_burn = 0

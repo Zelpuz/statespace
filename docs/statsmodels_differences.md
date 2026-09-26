@@ -36,9 +36,17 @@ difference is about 1e-10.
   own LDL' factorization.
 - **Diffuse tolerances.** These match statsmodels: 1e-10 on F∞ and on ‖P∞‖²_F. Elements
   with F\* ≤ 1e-10 are skipped in the diffuse period, as in statsmodels.
-- **Steady state.** statsmodels' conventional filter switches to a steady-state
-  shortcut once P_t converges. Ours doesn't yet (milestone 8), which explains the
-  ~1e-10 differences in some time-invariant multivariate fixtures.
+- **Steady state (DK 4.3.4).** Both conventional filters stop updating P, F and K
+  once P_t converges in a time-invariant model, but they test convergence
+  differently.
+  - statsmodels switches when ‖P_{t+1} − P_t‖²_F < 1e-19. That threshold is absolute,
+    so whether it is reached depends on the scale of the data.
+  - Ours switches when ‖P_{t+1} − P_t‖_F ≤ `tol_steady` · ‖P_{t+1}‖_F, with
+    `tol_steady` = 1e-15 by default. Setting it negative turns the switch off, and
+    `filter_result_t%t_steady` reports the first period that used it.
+  - In ours, a missing observation restarts the full recursion. The ~1e-10
+    differences in some time-invariant multivariate fixtures come from where the two
+    filters switch.
 
 ### Default initialization of the built-in models
 
@@ -72,8 +80,10 @@ The cycle period bounds default to 2 up to the number of observations. statsmode
 - **Gradient.**
   - Ours defaults to DK's analytic score (7.14)/(7.16), which comes from one smoother
     pass through the Fisher identity. It covers parameters in H, R, Q and a
-    stationary P\*. Parameters that move Z or T fall back to finite differences, as DK
-    recommend.
+    stationary P\*.
+  - Parameters that move Z or T (AR/MA coefficients, cycle frequency and damping,
+    loadings) get central differences, as DK recommend. This happens per parameter,
+    so the variances in the same model keep their analytic score.
   - statsmodels defaults to complex-step differentiation. Its analytic score is
     `_score_harvey` (Harvey 1989), which differentiates the filter recursions.
 - **Standard errors.** Ours come from a finite-difference Hessian in the
@@ -146,13 +156,14 @@ future exog.
 | Harrison–Stevens seasonal; multivariate structural models (SUTSE, common levels, latent risk) | 3.2–3.3 |
 | Continuous-time local level and smooth trend, and weighted irregulars for unequal spacing | 3.8 |
 | Discrete and continuous smoothing splines | 3.9 |
+| Steady-state P̄ by structure-preserving doubling (`steady_state`), independent of the filter | 4.3.4 |
+| `fit_many`: independent fits in parallel with OpenMP | |
 
 ## Only in statsmodels
 
 | Feature | Notes |
 |---|---|
 | Chandrasekhar recursions (`FILTER_CHANDRASEKHAR`) | Not in DK |
-| Steady-state switch in the conventional filter | Planned for milestone 8 |
 | Memory-conservation options, filter timing, choice of matrix inversion method, forced symmetry | Ours always uses Cholesky for F and stores every output |
 | Chan–Jeliazkov (CFA) simulation smoother | Not in DK |
 | News and revisions (`news`), smoothed-state decomposition and gains, impulse responses | |

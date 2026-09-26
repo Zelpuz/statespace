@@ -45,7 +45,7 @@ contains
   !> e_t = L_t^-1 v_t over the observed elements (F_oo = L L').
   subroutine standardized_residuals(fres, e)
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: e(:, :)        !< (p, n)
+    real(dp), intent(out), contiguous :: e(:, :)        !< (p, n)
     real(dp), allocatable :: L(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: x
@@ -73,8 +73,8 @@ contains
   subroutine auxiliary_residuals(rep, sres, eps_std, eta_std)
     type(ssm_rep_t), intent(in) :: rep
     type(smoother_result_t), intent(in) :: sres
-    real(dp), intent(out) :: eps_std(:, :)   !< (p, n)
-    real(dp), intent(out) :: eta_std(:, :)   !< (r, n)
+    real(dp), intent(out), contiguous :: eps_std(:, :)   !< (p, n)
+    real(dp), intent(out), contiguous :: eta_std(:, :)   !< (r, n)
     real(dp) :: v, nan
     integer :: t, i, ih, iq
 
@@ -103,7 +103,7 @@ contains
   subroutine least_squares_residuals(rep, first, last, vplus, info)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: first, last
-    real(dp), intent(out) :: vplus(:, :)     !< (p, n)
+    real(dp), intent(out), contiguous :: vplus(:, :)     !< (p, n)
     integer, intent(out) :: info
     type(ssm_rep_t) :: fixed
     type(filter_result_t) :: fres
@@ -135,8 +135,8 @@ contains
   subroutine auxiliary_residuals_vector(rep, sres, eps_std, eta_std)
     type(ssm_rep_t), intent(in) :: rep
     type(smoother_result_t), intent(in) :: sres
-    real(dp), intent(out) :: eps_std(:, :)   !< (p, n)
-    real(dp), intent(out) :: eta_std(:, :)   !< (r, n)
+    real(dp), intent(out), contiguous :: eps_std(:, :)   !< (p, n)
+    real(dp), intent(out), contiguous :: eta_std(:, :)   !< (r, n)
     integer :: t, ih, iq
 
     do t = 1, rep%nobs
@@ -156,8 +156,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     type(smoother_result_t), intent(in) :: sres
-    real(dp), intent(out) :: r_stat(:, :)    !< (m, n)
-    real(dp), intent(out) :: e_stat(:, :)    !< (p, n)
+    real(dp), intent(out), contiguous :: r_stat(:, :)    !< (m, n)
+    real(dp), intent(out), contiguous :: e_stat(:, :)    !< (p, n)
     real(dp), allocatable :: K(:, :), Finv(:, :), e(:), D(:, :), vz(:)
     real(dp) :: nan
     integer :: t, i, info
@@ -187,7 +187,7 @@ contains
   !> L^-1 x for V = L D L' factored as L D^(1/2) (the Cholesky factor when V is
   !> positive definite); NaN for elements whose pivot is zero.
   function whiten(V, x) result(z)
-    real(dp), intent(in) :: V(:, :), x(:)
+    real(dp), intent(in), contiguous :: V(:, :), x(:)
     real(dp) :: z(size(x))
     real(dp), allocatable :: L(:, :), D(:)
     integer :: i, j
@@ -215,8 +215,8 @@ contains
   !> sum of squares). Pairs with a NaN are skipped. `model_df` is subtracted
   !> from the degrees of freedom.
   subroutine ljung_box(x, stat, pvalue, model_df)
-    real(dp), intent(in) :: x(:)
-    real(dp), intent(out) :: stat(:), pvalue(:)
+    real(dp), intent(in), contiguous :: x(:)
+    real(dp), intent(out), contiguous :: stat(:), pvalue(:)
     integer, intent(in), optional :: model_df
     logical, allocatable :: ok(:)
     real(dp), allocatable :: z(:)
@@ -247,7 +247,7 @@ contains
   !> JB = n/6 (S^2 + (K - 3)^2 / 4), with the (biased) sample skewness S and
   !> kurtosis K, and p-value P(chi2(2) > JB) = exp(-JB/2).
   subroutine jarque_bera(x, jb, pvalue, skew, kurtosis)
-    real(dp), intent(in) :: x(:)
+    real(dp), intent(in), contiguous :: x(:)
     real(dp), intent(out) :: jb, pvalue, skew, kurtosis
     real(dp), allocatable :: z(:)
     real(dp) :: m2
@@ -269,7 +269,7 @@ contains
   !> non-missing counts). Default h = round(n / 3), rounding half to even as
   !> statsmodels does.
   subroutine breakvar_test(x, stat, pvalue, h)
-    real(dp), intent(in) :: x(:)
+    real(dp), intent(in), contiguous :: x(:)
     real(dp), intent(out) :: stat, pvalue
     integer, intent(in), optional :: h
     real(dp), allocatable :: last(:), first(:)
@@ -316,7 +316,7 @@ contains
   !> models give SS_ERR_UNSUPPORTED.
   subroutine prediction_error_variance(rep, F, info)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(out) :: F(:, :)
+    real(dp), intent(out), contiguous :: F(:, :)
     integer, intent(out) :: info
     real(dp), allocatable :: P(:, :)
 

@@ -41,6 +41,13 @@ module statespace_smoother
   !> diffuse parts r^(1), N^(1), N^(2), zero outside the diffuse period.
   type :: smoother_ws_t
     real(dp), allocatable :: r0(:), r1(:), N0(:, :), N1(:, :), N2(:, :)
+    !> Scratch for the conventional step and the state disturbances,
+    !> allocated once per run.
+    real(dp), allocatable :: u(:), vz(:), r_prev(:), NL(:, :), PN(:, :), NK(:, :), HD(:, :), &
+                             ZtFinv(:, :), N_prev(:, :), D(:, :), L(:, :), NRQ(:, :)
+    !> R Q for the slices ir, iq of R and Q.
+    real(dp), allocatable :: RQ(:, :)
+    integer :: ir = 0, iq = 0
   end type smoother_ws_t
 
 contains
@@ -64,6 +71,9 @@ contains
     allocate (sres%alphahat(m, n), sres%V(m, m, n), sres%r(m, 0:n), sres%N(m, m, 0:n), &
               sres%epshat(p, n), sres%epsvar(p, p, n), sres%etahat(r, n), sres%etavar(r, r, n))
     allocate (ws%r0(m), ws%r1(m), ws%N0(m, m), ws%N1(m, m), ws%N2(m, m), source=0.0_dp)
+    allocate (ws%u(p), ws%vz(p), ws%r_prev(m), ws%NL(m, m), ws%PN(m, m), ws%NK(m, p), &
+              ws%HD(p, p), ws%ZtFinv(m, p), ws%N_prev(m, m), ws%D(p, p), ws%L(m, m), &
+              ws%NRQ(m, r), ws%RQ(m, r))
 
     sres%r(:, n) = 0.0_dp
     sres%N(:, :, n) = 0.0_dp
@@ -87,19 +97,21 @@ contains
   subroutine state_disturbance(rep, t, ws, etahat, etavar)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
-    type(smoother_ws_t), intent(in) :: ws
-    real(dp), intent(out) :: etahat(:), etavar(:, :)
-    real(dp), allocatable :: RQ(:, :), NRQ(:, :)
+    type(smoother_ws_t), intent(inout) :: ws
+    real(dp), intent(out), contiguous :: etahat(:), etavar(:, :)
     integer :: ir, iq
 
     ir = tidx(size(rep%R, 3), t)
     iq = tidx(size(rep%Q, 3), t)
-    allocate (RQ(rep%k_states, rep%k_posdef), NRQ(rep%k_states, rep%k_posdef))
-    call gemm('N', 'N', 1.0_dp, rep%R(:, :, ir), rep%Q(:, :, iq), 0.0_dp, RQ)
-    call gemv('T', 1.0_dp, RQ, ws%r0, 0.0_dp, etahat)
-    call gemm('N', 'N', 1.0_dp, ws%N0, RQ, 0.0_dp, NRQ)
+    if (ir /= ws%ir .or. iq /= ws%iq) then
+      call gemm('N', 'N', 1.0_dp, rep%R(:, :, ir), rep%Q(:, :, iq), 0.0_dp, ws%RQ)
+      ws%ir = ir
+      ws%iq = iq
+    end if
+    call gemv('T', 1.0_dp, ws%RQ, ws%r0, 0.0_dp, etahat)
+    call gemm('N', 'N', 1.0_dp, ws%N0, ws%RQ, 0.0_dp, ws%NRQ)
     etavar = rep%Q(:, :, iq)
-    call gemm('T', 'N', -1.0_dp, RQ, NRQ, 1.0_dp, etavar)
+    call gemm('T', 'N', -1.0_dp, ws%RQ, ws%NRQ, 1.0_dp, etavar)
     call symmetrize(etavar)
   end subroutine state_disturbance
 
@@ -120,61 +132,57 @@ contains
     integer, intent(in) :: t
     type(smoother_ws_t), intent(inout) :: ws
     type(smoother_result_t), intent(inout) :: sres
-    real(dp), allocatable :: vz(:), u(:), L(:, :), ZtFinv(:, :), NL(:, :), PN(:, :), NK(:, :)
-    real(dp), allocatable :: D(:, :), HD(:, :), r_prev(:), N_prev(:, :)
     integer :: p, m, iz, ih, it
 
     p = rep%k_endog; m = rep%k_states
     iz = tidx(size(rep%Z, 3), t)
     ih = tidx(size(rep%H, 3), t)
     it = tidx(size(rep%T, 3), t)
-    allocate (u(p), NL(m, m), PN(m, m), NK(m, p), HD(p, p), ZtFinv(m, p), r_prev(m), &
-              N_prev(m, m))
 
     ! u = F^-1 v - K' r  (missing elements of v contribute nothing)
-    vz = merge(0.0_dp, fres%v(:, t), ieee_is_nan(fres%v(:, t)))
-    call gemv('N', 1.0_dp, fres%Finv(:, :, t), vz, 0.0_dp, u)
-    call gemv('T', -1.0_dp, fres%K(:, :, t), ws%r0, 1.0_dp, u)
-    call gemv('N', 1.0_dp, rep%H(:, :, ih), u, 0.0_dp, sres%epshat(:, t))
+    ws%vz = merge(0.0_dp, fres%v(:, t), ieee_is_nan(fres%v(:, t)))
+    call gemv('N', 1.0_dp, fres%Finv(:, :, t), ws%vz, 0.0_dp, ws%u)
+    call gemv('T', -1.0_dp, fres%K(:, :, t), ws%r0, 1.0_dp, ws%u)
+    call gemv('N', 1.0_dp, rep%H(:, :, ih), ws%u, 0.0_dp, sres%epshat(:, t))
 
     ! Var[eps_t] = H - H D H,  D = F^-1 + K' N_t K
-    call gemm('N', 'N', 1.0_dp, ws%N0, fres%K(:, :, t), 0.0_dp, NK)
-    D = fres%Finv(:, :, t)
-    call gemm('T', 'N', 1.0_dp, fres%K(:, :, t), NK, 1.0_dp, D)
-    call gemm('N', 'N', 1.0_dp, rep%H(:, :, ih), D, 0.0_dp, HD)
+    call gemm('N', 'N', 1.0_dp, ws%N0, fres%K(:, :, t), 0.0_dp, ws%NK)
+    ws%D = fres%Finv(:, :, t)
+    call gemm('T', 'N', 1.0_dp, fres%K(:, :, t), ws%NK, 1.0_dp, ws%D)
+    call gemm('N', 'N', 1.0_dp, rep%H(:, :, ih), ws%D, 0.0_dp, ws%HD)
     sres%epsvar(:, :, t) = rep%H(:, :, ih)
-    call gemm('N', 'N', -1.0_dp, HD, rep%H(:, :, ih), 1.0_dp, sres%epsvar(:, :, t))
+    call gemm('N', 'N', -1.0_dp, ws%HD, rep%H(:, :, ih), 1.0_dp, sres%epsvar(:, :, t))
     call symmetrize(sres%epsvar(:, :, t))
 
     ! r_t-1 = Z' u + T' r_t
-    call gemv('T', 1.0_dp, rep%T(:, :, it), ws%r0, 0.0_dp, r_prev)
-    call gemv('T', 1.0_dp, rep%Z(:, :, iz), u, 1.0_dp, r_prev)
+    call gemv('T', 1.0_dp, rep%T(:, :, it), ws%r0, 0.0_dp, ws%r_prev)
+    call gemv('T', 1.0_dp, rep%Z(:, :, iz), ws%u, 1.0_dp, ws%r_prev)
 
     ! N_t-1 = Z' F^-1 Z + L' N_t L
-    L = rep%T(:, :, it)
-    call gemm('N', 'N', -1.0_dp, fres%K(:, :, t), rep%Z(:, :, iz), 1.0_dp, L)
-    call gemm('T', 'N', 1.0_dp, rep%Z(:, :, iz), fres%Finv(:, :, t), 0.0_dp, ZtFinv)
-    call gemm('N', 'N', 1.0_dp, ZtFinv, rep%Z(:, :, iz), 0.0_dp, N_prev)
-    call gemm('N', 'N', 1.0_dp, ws%N0, L, 0.0_dp, NL)
-    call gemm('T', 'N', 1.0_dp, L, NL, 1.0_dp, N_prev)
-    call symmetrize(N_prev)
-    ws%r0 = r_prev
-    ws%N0 = N_prev
+    ws%L = rep%T(:, :, it)
+    call gemm('N', 'N', -1.0_dp, fres%K(:, :, t), rep%Z(:, :, iz), 1.0_dp, ws%L)
+    call gemm('T', 'N', 1.0_dp, rep%Z(:, :, iz), fres%Finv(:, :, t), 0.0_dp, ws%ZtFinv)
+    call gemm('N', 'N', 1.0_dp, ws%ZtFinv, rep%Z(:, :, iz), 0.0_dp, ws%N_prev)
+    call gemm('N', 'N', 1.0_dp, ws%N0, ws%L, 0.0_dp, ws%NL)
+    call gemm('T', 'N', 1.0_dp, ws%L, ws%NL, 1.0_dp, ws%N_prev)
+    call symmetrize(ws%N_prev)
+    ws%r0 = ws%r_prev
+    ws%N0 = ws%N_prev
 
     if (t > fres%nobs_diffuse) then
       ! alphahat_t = a_t + P_t r_t-1,  V_t = P_t - P_t N_t-1 P_t
       sres%alphahat(:, t) = fres%a(:, t)
       call gemv('N', 1.0_dp, fres%P(:, :, t), ws%r0, 1.0_dp, sres%alphahat(:, t))
-      call gemm('N', 'N', 1.0_dp, fres%P(:, :, t), ws%N0, 0.0_dp, PN)
+      call gemm('N', 'N', 1.0_dp, fres%P(:, :, t), ws%N0, 0.0_dp, ws%PN)
       sres%V(:, :, t) = fres%P(:, :, t)
-      call gemm('N', 'N', -1.0_dp, PN, fres%P(:, :, t), 1.0_dp, sres%V(:, :, t))
+      call gemm('N', 'N', -1.0_dp, ws%PN, fres%P(:, :, t), 1.0_dp, sres%V(:, :, t))
       call symmetrize(sres%V(:, :, t))
       return
     end if
 
     ! Diffuse period with F_inf = 0.
     ws%r1 = matmul(transpose(rep%T(:, :, it)), ws%r1)
-    ws%N1 = matmul(transpose(rep%T(:, :, it)), matmul(ws%N1, L))
+    ws%N1 = matmul(transpose(rep%T(:, :, it)), matmul(ws%N1, ws%L))
     ws%N2 = matmul(transpose(rep%T(:, :, it)), matmul(ws%N2, rep%T(:, :, it)))
     call symmetrize(ws%N2)
     call diffuse_state(fres, t, ws, sres)
@@ -412,8 +420,8 @@ contains
   subroutine measurement_disturbance(rep, t, alphahat, V, epshat, epsvar)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
-    real(dp), intent(in) :: alphahat(:), V(:, :)
-    real(dp), intent(out) :: epshat(:), epsvar(:, :)
+    real(dp), intent(in), contiguous :: alphahat(:), V(:, :)
+    real(dp), intent(out), contiguous :: epshat(:), epsvar(:, :)
     real(dp), allocatable :: Zo(:, :), ZV(:, :), Voo(:, :), G(:, :), GV(:, :), eo(:)
     logical, allocatable :: obs(:)
     integer, allocatable :: io(:), im(:)
@@ -453,8 +461,8 @@ contains
 
   !> S <- T' S T for symmetric S.
   subroutine congruence(T, S, out)
-    real(dp), intent(in) :: T(:, :), S(:, :)
-    real(dp), intent(out) :: out(:, :)
+    real(dp), intent(in), contiguous :: T(:, :), S(:, :)
+    real(dp), intent(out), contiguous :: out(:, :)
     real(dp), allocatable :: ST(:, :)
 
     allocate (ST(size(S, 1), size(T, 2)))
@@ -465,8 +473,8 @@ contains
 
   !> C <- C + L1' A L2.
   subroutine add_lt_a_l(L1, A, L2, C)
-    real(dp), intent(in) :: L1(:, :), A(:, :), L2(:, :)
-    real(dp), intent(inout) :: C(:, :)
+    real(dp), intent(in), contiguous :: L1(:, :), A(:, :), L2(:, :)
+    real(dp), intent(inout), contiguous :: C(:, :)
     real(dp), allocatable :: AL(:, :)
 
     allocate (AL(size(A, 1), size(L2, 2)))

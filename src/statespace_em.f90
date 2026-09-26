@@ -113,7 +113,7 @@ contains
   end subroutine em_variances
 
   pure function diagonal_part(A) result(D)
-    real(dp), intent(in) :: A(:, :)
+    real(dp), intent(in), contiguous :: A(:, :)
     real(dp) :: D(size(A, 1), size(A, 2))
     integer :: i
 

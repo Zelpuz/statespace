@@ -57,7 +57,8 @@ contains
                 new_unittest("concentrated_ar2_fit", test_concentrated_ar2_fit), &
                 new_unittest("stationary_transform", test_stationary_transform), &
                 new_unittest("ar2_loglike", test_ar2_loglike), &
-                new_unittest("ar2_fit", test_ar2_fit) &
+                new_unittest("ar2_fit", test_ar2_fit), &
+                new_unittest("fit_many_matches_fit", test_fit_many) &
                 ]
   end subroutine collect_mle
 
@@ -578,7 +579,7 @@ contains
     call fit(mod, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
-    call check(error, .not. res%analytic_gradient, "AR parameters move T: numerical gradient")
+    call check(error, res%analytic_gradient, "hybrid gradient: sigma2 analytic, AR (in T) numerical")
     if (allocated(error)) return
     call check(error, res%converged, "not converged: "//trim(res%message))
     if (allocated(error)) return
@@ -588,4 +589,38 @@ contains
     if (allocated(error)) return
     call check_rel(error, res%bse, fx%get1('bse_tight'), 1.0e-3_dp, "bse")
   end subroutine test_ar2_fit
+
+  !> fit_many (parallel with OpenMP) gives the same results as fit.
+  subroutine test_fit_many(error)
+    type(error_type), allocatable, intent(out) :: error
+    integer, parameter :: ns = 8, n = 80
+    type(component_holder_t) :: comps(2)
+    type(structural_model_t) :: models(ns), one
+    type(fit_result_t) :: res(ns), r1
+    real(dp) :: y(1, n, ns), e(n), u(n)
+    integer :: info(ns), i, t, stat
+
+    allocate (irregular_t :: comps(1)%c)
+    allocate (level_t :: comps(2)%c)
+    do i = 1, ns
+      call draw_standard_normal(e)
+      call draw_standard_normal(u)
+      y(1, 1, i) = e(1)
+      do t = 2, n
+        y(1, t, i) = y(1, t - 1, i) + 0.3_dp * e(t)
+      end do
+      y(1, :, i) = y(1, :, i) + u
+      models(i) = structural_model(y(:, :, i), comps, stat)
+    end do
+    call fit_many(models, res, info)
+    do i = 1, ns
+      one = structural_model(y(:, :, i), comps, stat)
+      call fit(one, r1, info=stat)
+      call check(error, info(i), stat, "info")
+      if (allocated(error)) return
+      call check(error, all(res(i)%params == r1%params) .and. res(i)%llf == r1%llf, &
+                 "identical to fit")
+      if (allocated(error)) return
+    end do
+  end subroutine test_fit_many
 end module test_mle

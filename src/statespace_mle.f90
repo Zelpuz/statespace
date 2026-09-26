@@ -2,10 +2,14 @@
 !>
 !> The optimizer minimizes -loglike / nobs over the unconstrained parameters,
 !> as statsmodels does. The gradient is the analytic score (DK 7.3.3, one
-!> smoother pass; see `statespace_score`) where the model allows it, and
-!> central differences otherwise. Standard errors come from a numerical
-!> Hessian of the log likelihood in the constrained parameters (statsmodels'
-!> `cov_type='approx'`).
+!> smoother pass; see `statespace_score`) for the parameters it covers, with
+!> central differences for the others (parameters in Z or T, as DK
+!> recommend), or entirely by central differences when it covers none. Standard errors come from a numerical
+!> Hessian of the log likelihood in the unconstrained parameters, mapped to
+!> the constrained ones by the delta method (DK 7.3.6).
+!>
+!> `fit_many` fits independent models in parallel when the library is built
+!> with OpenMP (`--flag -fopenmp`); otherwise it runs them in turn.
 module statespace_mle
   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
   use lbfgsb_module, only: setulb
@@ -20,7 +24,7 @@ module statespace_mle
   implicit none
   private
 
-  public :: fit_options_t, fit_result_t, fit, numerical_hessian, estimation_bias
+  public :: fit_options_t, fit_result_t, fit, fit_many, numerical_hessian, estimation_bias
 
   !> Gradient methods for `fit`.
   integer, parameter, public :: GRADIENT_AUTO = 0       !< analytic if supported, else numerical
@@ -46,7 +50,8 @@ module statespace_mle
     real(dp) :: aic = 0.0_dp, bic = 0.0_dp
     integer :: niter = 0, nfev = 0
     logical :: converged = .false.
-    logical :: analytic_gradient = .false.    !< whether the analytic score was used
+    logical :: analytic_gradient = .false.    !< whether the analytic score was used (for at least
+                                              !< one parameter; see analytic_gradient)
     character(len=60) :: message = ''
   end type fit_result_t
 
@@ -72,7 +77,7 @@ contains
     real(dp) :: dsave(29), f, nobs, logdet
     real(dp), allocatable :: x(:), g(:), l(:), u(:), wa(:), J(:, :)
     integer, allocatable :: nbd(:), iwa(:)
-    integer :: i, k, m, n_eff, k_eff
+    integer :: i, k, m, n_eff, k_eff, nfd
     logical :: use_analytic
 
     if (present(options)) opts = options
@@ -97,13 +102,13 @@ contains
                   opts%iprint, csave, lsave, isave, dsave)
       if (task(1:2) == 'FG') then
         if (use_analytic) then
-          call analytic_gradient(model, x, nobs, f, g, info)
+          call analytic_gradient(model, x, nobs, f, g, info, nfd)
           if (info == SS_ERR_UNSUPPORTED .and. opts%gradient == GRADIENT_AUTO) then
             use_analytic = .false.
           else if (info == SS_ERR_UNSUPPORTED) then
             return
           else
-            res%nfev = res%nfev + 1
+            res%nfev = res%nfev + 1 + nfd
           end if
         end if
         if (.not. use_analytic) then
@@ -164,6 +169,26 @@ contains
     call model%update(res%params)
     model%scale = res%scale
   end subroutine fit
+
+  !> Fit each of `models` (e.g. one model per series) as `fit` does, in
+  !> parallel over the models with OpenMP. Each model is only touched by its
+  !> own thread. For large models, set OPENBLAS_NUM_THREADS=1 (or the
+  !> equivalent) to avoid nested threading in BLAS.
+  subroutine fit_many(models, res, info, options)
+    class(ssm_model_t), intent(inout) :: models(:)
+    type(fit_result_t), intent(out) :: res(:)
+    integer, intent(out) :: info(:)
+    type(fit_options_t), intent(in), optional :: options
+    type(fit_options_t) :: opts
+    integer :: i
+
+    if (present(options)) opts = options
+    !$omp parallel do schedule(dynamic)
+    do i = 1, size(models)
+      call fit(models(i), res(i), options=opts, info=info(i))
+    end do
+    !$omp end parallel do
+  end subroutine fit_many
 
   !> -loglike / nobs at unconstrained parameters x.
   real(dp) function objective(model, x, nobs) result(f)
@@ -270,21 +295,29 @@ contains
     call model%smooth(fres%params, filt, s0, stat)   ! leave the model at psi_hat
   end subroutine estimation_bias
 
-  !> Objective and its gradient from the analytic score: with
-  !> psi = transform(x), d(-llf/nobs)/dx = -J' score / nobs, J = d psi / d x
-  !> (central differences of the transform only). SS_ERR_UNSUPPORTED if the
-  !> model is outside the analytic score's scope.
-  subroutine analytic_gradient(model, x, nobs, f, g, info)
+  !> Objective and gradient with the analytic score (DK 7.3.3) where it
+  !> applies: g = -J' score / nobs, J = d psi / d x. Each unconstrained x_i
+  !> that moves a parameter outside the score formula's scope (e.g. one in
+  !> Z or T) gets a central difference of the objective instead. Returns
+  !> SS_ERR_UNSUPPORTED when no parameter is covered; `nfd` counts the extra
+  !> objective evaluations.
+  subroutine analytic_gradient(model, x, nobs, f, g, info, nfd)
     class(ssm_model_t), intent(inout) :: model
-    real(dp), intent(in) :: x(:), nobs
-    real(dp), intent(out) :: f, g(:)
+    real(dp), intent(in), contiguous :: x(:)
+    real(dp), intent(in) :: nobs
+    real(dp), intent(out) :: f
+    real(dp), intent(out), contiguous :: g(:)
     integer, intent(out) :: info
-    real(dp), allocatable :: psi(:), score(:)
+    integer, intent(out) :: nfd
+    real(dp), allocatable :: psi(:), score(:), J(:, :)
+    logical, allocatable :: analytic(:)
     real(dp) :: llf
+    integer :: i
 
+    nfd = 0
     psi = model%transform_params(x)
-    allocate (score(size(psi)))
-    call analytic_score(model, psi, score, llf, info)
+    allocate (score(size(psi)), analytic(size(psi)))
+    call analytic_score(model, psi, score, llf, info, analytic)
     if (info == SS_ERR_UNSUPPORTED) return
     if (info /= SS_OK .or. .not. ieee_is_finite(llf)) then
       f = bad_objective
@@ -292,34 +325,55 @@ contains
       info = SS_OK
       return
     end if
+    if (.not. any(analytic)) then
+      info = SS_ERR_UNSUPPORTED
+      return
+    end if
     f = -llf / nobs
-    g = -matmul(transpose(transform_jacobian(model, x)), score) / nobs
+    J = transform_jacobian(model, x)
+    g = -matmul(transpose(J), score) / nobs
+    do i = 1, size(x)
+      if (any(J(:, i) /= 0.0_dp .and. .not. analytic)) then
+        g(i) = gradient_component(model, x, nobs, i)
+        nfd = nfd + 2
+      end if
+    end do
   end subroutine analytic_gradient
 
   !> Central-difference gradient of `objective`.
   subroutine gradient(model, x, nobs, g)
     class(ssm_model_t), intent(inout) :: model
-    real(dp), intent(in) :: x(:), nobs
-    real(dp), intent(out) :: g(:)
-    real(dp), allocatable :: xh(:)
-    real(dp) :: h, fp, fm
+    real(dp), intent(in), contiguous :: x(:)
+    real(dp), intent(in) :: nobs
+    real(dp), intent(out), contiguous :: g(:)
     integer :: i
 
-    xh = x
     do i = 1, size(x)
-      h = epsilon(1.0_dp)**(1.0_dp / 3.0_dp) * max(abs(x(i)), 1.0_dp)
-      xh(i) = x(i) + h
-      fp = objective(model, xh, nobs)
-      xh(i) = x(i) - h
-      fm = objective(model, xh, nobs)
-      xh(i) = x(i)
-      if (fp >= bad_objective .or. fm >= bad_objective) then
-        g(i) = 0.0_dp
-      else
-        g(i) = (fp - fm) / (2.0_dp * h)
-      end if
+      g(i) = gradient_component(model, x, nobs, i)
     end do
   end subroutine gradient
+
+  !> Central difference of `objective` in x_i; 0 if either side fails.
+  real(dp) function gradient_component(model, x, nobs, i) result(gi)
+    class(ssm_model_t), intent(inout) :: model
+    real(dp), intent(in), contiguous :: x(:)
+    real(dp), intent(in) :: nobs
+    integer, intent(in) :: i
+    real(dp), allocatable :: xh(:)
+    real(dp) :: h, fp, fm
+
+    xh = x
+    h = epsilon(1.0_dp)**(1.0_dp / 3.0_dp) * max(abs(x(i)), 1.0_dp)
+    xh(i) = x(i) + h
+    fp = objective(model, xh, nobs)
+    xh(i) = x(i) - h
+    fm = objective(model, xh, nobs)
+    if (fp >= bad_objective .or. fm >= bad_objective) then
+      gi = 0.0_dp
+    else
+      gi = (fp - fm) / (2.0_dp * h)
+    end if
+  end function gradient_component
 
   !> Central-difference Jacobian d theta / d psi of `transform_params` at
   !> unconstrained x.

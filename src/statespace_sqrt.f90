@@ -180,7 +180,7 @@ contains
 
   !> Inverse of a nonsingular lower triangular matrix by forward substitution.
   function invert_lower(L) result(X)
-    real(dp), intent(in) :: L(:, :)
+    real(dp), intent(in), contiguous :: L(:, :)
     real(dp), allocatable :: X(:, :)
     integer :: i, j, n
 
