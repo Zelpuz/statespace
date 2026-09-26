@@ -1,6 +1,7 @@
 !> DK chapter 4 recursions: matrix form (4.13), updating and fixed-point /
 !> fixed-lag smoothing (4.4.5-4.4.6), filtering weights (4.8.2), the Whittle
-!> relation (4.6.3) and de Jong-Shephard simulation (4.9.3).
+!> relation (4.6.3), de Jong-Shephard simulation (4.9.3) and the steady
+!> state (2.11, 4.3.4).
 module test_recursions
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
   use testdrive, only: new_unittest, unittest_type, error_type, check
@@ -25,7 +26,11 @@ contains
                 new_unittest("filtering_weights", test_filter_weights), &
                 new_unittest("smoothing_weights_table_4_6", test_smoothing_weights_dk), &
                 new_unittest("whittle_recursion", test_whittle), &
-                new_unittest("de_jong_shephard", test_djs) &
+                new_unittest("de_jong_shephard", test_djs), &
+                new_unittest("steady_state_local_level", test_steady_nile), &
+                new_unittest("steady_state_long_filter", test_steady_filter), &
+                new_unittest("steady_state_arma_no_noise", test_steady_arma), &
+                new_unittest("steady_state_deterministic_level", test_steady_fixed) &
                 ]
   end subroutine collect_recursions
 
@@ -372,4 +377,89 @@ contains
                         mask=true_var > 1.0e-12_dp))
     end function zmax
   end subroutine test_djs
+
+  !> DK 2.11: the local level model's steady state is P = x sigma2_eps with
+  !> x = (q + sqrt(q^2 + 4 q)) / 2, q = sigma2_eta / sigma2_eps.
+  subroutine test_steady_nile(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(ssm_rep_t) :: r
+    real(dp) :: y(1, 5), P(1, 1), F(1, 1), q, x
+    integer :: info
+
+    y = 0.0_dp
+    r = ssm_rep(y, m=1, r=1)
+    r%Z = 1.0_dp; r%T = 1.0_dp; r%R = 1.0_dp
+    r%H = 15099.0_dp; r%Q = 1469.1_dp
+    call steady_state(r, P, F, info)
+    call check(error, info, SS_OK, "info")
+    if (allocated(error)) return
+    q = 1469.1_dp / 15099.0_dp
+    x = (q + sqrt(q**2 + 4 * q)) / 2
+    call check_rel(error, [P(1, 1), F(1, 1)], 15099.0_dp * [x, 1 + x], 1.0e-12_dp, "P, F")
+  end subroutine test_steady_nile
+
+  !> Correlated H, p = 2: the filter's P_t and F_t after many periods.
+  subroutine test_steady_filter(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(fixture_t) :: fx
+    type(ssm_rep_t) :: r
+    type(filter_result_t) :: fres
+    real(dp), allocatable :: P(:, :), F(:, :)
+    integer :: info, n
+
+    fx = load_fixture("test/fixtures/mv_invariant.txt")
+    r = rep_from_fixture(fx)
+    n = 2000
+    r%y = spread(spread(0.0_dp, 1, r%k_endog), 2, n)
+    r%nobs = n
+    call kalman_filter(r, fres, info)
+    call check(error, info, SS_OK, "filter info")
+    if (allocated(error)) return
+    allocate (P(r%k_states, r%k_states), F(r%k_endog, r%k_endog))
+    call steady_state(r, P, F, info)
+    call check(error, info, SS_OK, "info")
+    if (allocated(error)) return
+    call check_rel(error, pack(P, .true.), pack(fres%P(:, :, n + 1), .true.), 1.0e-10_dp, "P")
+    if (allocated(error)) return
+    call check_rel(error, pack(F, .true.), pack(fres%F(:, :, n), .true.), 1.0e-10_dp, "F")
+  end subroutine test_steady_filter
+
+  !> Singular H (the plain recursion): an invertible ARMA(1, 1) without
+  !> measurement error has steady-state F = sigma2, the innovation variance.
+  subroutine test_steady_arma(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(component_holder_t) :: comps(1)
+    type(structural_model_t) :: mod
+    real(dp) :: y(1, 5), P(2, 2), F(1, 1)
+    integer :: info
+
+    y = 0.0_dp
+    comps(1)%c = arima_t(ar=1, ma=1)
+    mod = structural_model(y, comps, info)
+    call mod%update([0.6_dp, 0.3_dp, 2.0_dp])
+    call steady_state(mod%rep, P, F, info)
+    call check(error, info, SS_OK, "info")
+    if (allocated(error)) return
+    call check_rel(error, [F(1, 1)], [2.0_dp], 1.0e-10_dp, "F = sigma2")
+  end subroutine test_steady_arma
+
+  !> A fixed level is learned like 1/t, so P -> 0 and F -> sigma2_eps; the
+  !> doubling takes about 40 steps where the recursion would take ~1e12.
+  subroutine test_steady_fixed(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(ssm_rep_t) :: r
+    real(dp) :: y(1, 5), P(1, 1), F(1, 1)
+    integer :: info, niter
+
+    y = 0.0_dp
+    r = ssm_rep(y, m=1, r=1)
+    r%Z = 1.0_dp; r%T = 1.0_dp; r%R = 1.0_dp
+    r%H = 2.0_dp; r%Q = 0.0_dp
+    call steady_state(r, P, F, info, niter=niter)
+    call check(error, info, SS_OK, "info")
+    if (allocated(error)) return
+    call check(error, niter <= 60, "doubling steps")
+    if (allocated(error)) return
+    call check_rel(error, [P(1, 1), F(1, 1)], [0.0_dp, 2.0_dp], 1.0e-11_dp, "P, F")
+  end subroutine test_steady_fixed
 end module test_recursions

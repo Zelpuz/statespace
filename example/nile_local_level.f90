@@ -12,7 +12,7 @@ program nile_local_level
   type(smoother_result_t) :: sres
   integer :: info, t
 
-  y = read_nile("nile.csv")
+  y = read_nile("data/nile.csv")
 
   ! y_t = alpha_t + eps_t,  alpha_t+1 = alpha_t + eta_t
   rep = ssm_rep(y, m=1, r=1)

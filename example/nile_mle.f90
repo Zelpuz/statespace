@@ -89,7 +89,7 @@ program nile_mle
   real(dp), allocatable :: y(:, :)
   integer :: info, i
 
-  y = read_nile("nile.csv")
+  y = read_nile("data/nile.csv")
   mod = local_level(y)
 
   opts%factr = 10.0_dp       ! tight convergence; the likelihood is flat

@@ -91,7 +91,7 @@ def spd(rng, k, scale=1.0):
 
 
 def nile():
-    y = pd.read_csv("nile.csv")["volume"].to_numpy(dtype=float)
+    y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     params = [15099.0, 1469.1]  # sigma2_eps, sigma2_eta (DK section 2.2.4)
     one = np.ones((1, 1))
     generic("nile_llevel_known", y[None, :], one, params[0] * one, one, one,
@@ -165,7 +165,7 @@ def multivariate_missing():
 
 
 def diffuse_models():
-    y = pd.read_csv("nile.csv")["volume"].to_numpy(dtype=float)
+    y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     one = np.ones((1, 1))
 
     # Local level and local linear trend on Nile, exact diffuse (DK 5.2)
@@ -369,7 +369,7 @@ def smoothing_extras_fixtures():
 
 def concentrated_fixtures():
     """Scale concentrated out of the likelihood (filter_concentrated)."""
-    y = pd.read_csv("nile.csv")["volume"].to_numpy(dtype=float)
+    y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     ymiss = y.copy()
     ymiss[[5, 6, 40]] = np.nan
     q = 1469.1 / 15099.0
@@ -410,7 +410,7 @@ def diagnostics_fixtures():
     """DK 7.5 diagnostics: standardized one-step errors and the statsmodels
     tests on them."""
     from scipy import stats
-    y = pd.read_csv("nile.csv")["volume"].to_numpy(dtype=float)
+    y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     mod = sm.tsa.UnobservedComponents(y, "llevel", use_exact_diffuse=True)
     res = mod.smooth([15099.0, 1469.1])
     lb = res.test_serial_correlation("ljungbox", lags=10)[0]

@@ -18,7 +18,7 @@ module statespace_diagnostics
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_value, ieee_quiet_nan
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM
   use statespace_rep, only: ssm_rep_t, tidx
-  use statespace_filter, only: filter_result_t, kalman_filter
+  use statespace_filter, only: filter_result_t, kalman_filter, steady_state
   use statespace_smoothing, only: conventional_gain
   use statespace_linalg, only: ldl_psd
   use statespace_smoother, only: smoother_result_t
@@ -311,17 +311,19 @@ contains
     r2 = 1.0_dp - sum(v**2, mask=.not. ieee_is_nan(v)) / sum((dy - sum(dy) / size(dy))**2)
   end function r2_diffuse
 
-  !> Prediction error variance F at the last period (DK 7.4): for a
-  !> time-invariant model, close to the steady state.
-  subroutine prediction_error_variance(fres, F, info)
-    type(filter_result_t), intent(in) :: fres
+  !> Prediction error variance (DK 7.4): the steady-state F of a
+  !> time-invariant model (DK 2.11, 4.3.4; see `steady_state`). Time-varying
+  !> models give SS_ERR_UNSUPPORTED.
+  subroutine prediction_error_variance(rep, F, info)
+    type(ssm_rep_t), intent(in) :: rep
     real(dp), intent(out) :: F(:, :)
     integer, intent(out) :: info
+    real(dp), allocatable :: P(:, :)
 
     info = SS_ERR_DIM
-    if (any(shape(F) /= [fres%k_endog, fres%k_endog])) return
-    info = SS_OK
-    F = fres%F(:, :, fres%nobs)
+    if (any(shape(F) /= [rep%k_endog, rep%k_endog])) return
+    allocate (P(rep%k_states, rep%k_states))
+    call steady_state(rep, P, F, info)
   end subroutine prediction_error_variance
 
   !> Round to the nearest integer, halves to even (numpy's round).

@@ -20,14 +20,16 @@
 !> full-size update and smoother formulas exact.
 module statespace_filter
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_value, ieee_quiet_nan
-  use statespace_kinds, only: dp, log2pi, SS_OK
+  use statespace_kinds, only: dp, log2pi, SS_OK, SS_ERR_UNSUPPORTED, SS_ERR_NOT_CONVERGED, &
+                              SS_ERR_NOT_PD
   use statespace_linalg, only: gemm, gemv, chol_inv, symmetrize, ldl_psd, solve_unit_lower, &
-                               is_diagonal
+                               is_diagonal, solve, eye
   use statespace_rep, only: ssm_rep_t, tidx, FILTER_UNIVARIATE, DIFFUSE_MULTIVARIATE
   implicit none
   private
 
   public :: filter_result_t, kalman_filter, loglike, loglike_concentrated, marginal_correction
+  public :: steady_state
 
   !> How each period was filtered (filter_result_t%method).
   integer, parameter, public :: METHOD_CONVENTIONAL = 0  !< vector update (DK 4.3); with
@@ -769,4 +771,117 @@ contains
       Finv(idx, idx) = Fo
     end if
   end subroutine observed_inverse
+
+  !> Steady state of the Kalman filter for a time-invariant model (DK 2.11,
+  !> 4.3.4): the limit P of
+  !>
+  !>     P_t+1 = T P_t T' - T P_t Z' F_t^-1 Z P_t T' + R Q R',  F_t = Z P_t Z' + H,
+  !>
+  !> started from P_1 = 0, and F = Z P Z' + H. With H positive definite the
+  !> structure-preserving doubling algorithm (Chu, Fan, Lin and Wang 2004) is
+  !> used: writing the recursion
+  !> as X = A' X (I + G X)^-1 A + W with A = T', G = Z' H^-1 Z, W = R Q R',
+  !>
+  !>     A_k+1 = A_k (I + G_k X_k)^-1 A_k
+  !>     G_k+1 = G_k + A_k (I + G_k X_k)^-1 G_k A_k'
+  !>     X_k+1 = X_k + A_k' X_k (I + G_k X_k)^-1 A_k,
+  !>
+  !> X_0 = W, so that X_k = P_(2^k + 1). Convergence like 1/t (a fixed
+  !> regression effect, a nearly fixed seasonal) then takes about 40 steps.
+  !> Otherwise the recursion itself is iterated, at most `maxiter` times
+  !> (default 100000), and a singular F_t gives SS_ERR_NOT_PD. Converged when the largest change in P is at most
+  !> `tol` (default 1e-12) times max(1, max|P|); else SS_ERR_NOT_CONVERGED,
+  !> with the last iterate returned. Time-varying system matrices give
+  !> SS_ERR_UNSUPPORTED. Missing observations and the initialization play no
+  !> role.
+  subroutine steady_state(rep, P, F, info, tol, maxiter, niter)
+    type(ssm_rep_t), intent(in) :: rep
+    real(dp), intent(out) :: P(:, :)          !< (m, m) steady-state P
+    real(dp), intent(out) :: F(:, :)          !< (p, p) steady-state F
+    integer, intent(out) :: info
+    real(dp), intent(in), optional :: tol
+    integer, intent(in), optional :: maxiter
+    integer, intent(out), optional :: niter   !< doubling steps or iterations taken
+    real(dp), allocatable :: Z(:, :), H(:, :), T(:, :), W(:, :), A(:, :), G(:, :), &
+                             M(:, :), X(:, :), Xn(:, :), Hinv(:, :), Fi(:, :)
+    real(dp) :: tol_, logdet
+    integer :: maxit, it, mm, stat
+
+    tol_ = 1.0e-12_dp
+    if (present(tol)) tol_ = tol
+    maxit = 100000
+    if (present(maxiter)) maxit = maxiter
+    info = SS_ERR_UNSUPPORTED
+    if (size(rep%Z, 3) > 1 .or. size(rep%H, 3) > 1 .or. size(rep%T, 3) > 1 .or. &
+        size(rep%R, 3) > 1 .or. size(rep%Q, 3) > 1) return
+
+    mm = rep%k_states
+    Z = rep%Z(:, :, 1); H = rep%H(:, :, 1); T = rep%T(:, :, 1)
+    W = matmul(rep%R(:, :, 1), matmul(rep%Q(:, :, 1), transpose(rep%R(:, :, 1))))
+    Hinv = H
+    call chol_inv(Hinv, logdet, stat)
+    info = SS_ERR_NOT_CONVERGED
+    if (stat == SS_OK) then
+      ! Doubling
+      A = transpose(T)
+      G = matmul(transpose(Z), matmul(Hinv, Z))
+      X = W
+      do it = 1, 100
+        M = eye(mm) + matmul(G, X)
+        Fi = A                       ! (I + G_k X_k)^-1 A_k
+        call solve(M, Fi, stat)
+        if (stat /= SS_OK) exit
+        Xn = X + matmul(transpose(A), matmul(X, Fi))
+        G = G + matmul(A, matmul(inverse_times(eye(mm) + matmul(G, X), G), transpose(A)))
+        A = matmul(A, Fi)
+        call symmetrize(Xn); call symmetrize(G)
+        if (converged(X, Xn)) then
+          X = Xn
+          info = SS_OK
+          exit
+        end if
+        X = Xn
+      end do
+    else
+      ! The recursion itself (singular H), from P_2 = R Q R'
+      X = W
+      do it = 1, maxit
+        Fi = matmul(Z, matmul(X, transpose(Z))) + H
+        call chol_inv(Fi, logdet, stat)
+        if (stat /= SS_OK) then
+          info = SS_ERR_NOT_PD
+          exit
+        end if
+        M = matmul(T, matmul(X, transpose(Z)))          ! T P Z'
+        Xn = matmul(T, matmul(X, transpose(T))) - matmul(M, matmul(Fi, transpose(M))) + W
+        call symmetrize(Xn)
+        if (converged(X, Xn)) then
+          X = Xn
+          info = SS_OK
+          exit
+        end if
+        X = Xn
+      end do
+    end if
+    if (present(niter)) niter = it
+    P = X
+    F = matmul(Z, matmul(X, transpose(Z))) + H
+
+  contains
+
+    logical function converged(Xo, Xnew)
+      real(dp), intent(in) :: Xo(:, :), Xnew(:, :)
+
+      converged = maxval(abs(Xnew - Xo)) <= tol_ * max(1.0_dp, maxval(abs(Xnew)))
+    end function converged
+
+    !> B^-1 C for square B.
+    function inverse_times(B, C) result(D)
+      real(dp), intent(in) :: B(:, :), C(:, :)
+      real(dp), allocatable :: D(:, :)
+
+      D = C
+      call solve(B, D, stat)
+    end function inverse_times
+  end subroutine steady_state
 end module statespace_filter
