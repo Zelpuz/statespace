@@ -24,8 +24,8 @@ contains
 
   subroutine add_state_restrictions(rep, Rmat, rval, rrep, info)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(in) :: Rmat(:, :, :)     !< (q, m, 1|n) R*_t
-    real(dp), intent(in) :: rval(:, :)        !< (q, n) r*_t, NaN where inactive
+    real(dp), intent(in), contiguous :: Rmat(:, :, :)     !< (q, m, 1|n) R*_t
+    real(dp), intent(in), contiguous :: rval(:, :)        !< (q, n) r*_t, NaN where inactive
     type(ssm_rep_t), intent(out) :: rrep
     integer, intent(out) :: info
     integer :: p, q, m, n, nz, nh, t, iz, ir

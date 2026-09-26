@@ -45,7 +45,9 @@ contains
                 new_unittest("em_nile", test_em_nile), &
                 new_unittest("em_full_H_Q_missing", test_em_mv_missing), &
                 new_unittest("em_diagonal_seasonal_missing", test_em_seasonal), &
-                new_unittest("em_rejects_stationary_init", test_em_stationary) &
+                new_unittest("em_rejects_stationary_init", test_em_stationary), &
+                new_unittest("hybrid_score_mask", test_hybrid_mask), &
+                new_unittest("hybrid_gradient_fit", test_hybrid_fit) &
                 ]
   end subroutine collect_score
 
@@ -440,4 +442,80 @@ contains
     call em_step(rep, llf, info)
     call check(error, info, SS_ERR_UNSUPPORTED, "stationary block depends on Q")
   end subroutine test_em_stationary
+
+  !> Irregular + level + damped cycle on simulated data.
+  function cycle_model() result(mod)
+    type(structural_model_t) :: mod
+    type(component_holder_t) :: comps(3)
+    real(dp) :: y(1, 200), e(200), u(200)
+    integer :: t, info
+
+    call draw_standard_normal(e)
+    call draw_standard_normal(u)
+    y(1, 1) = 0.0_dp
+    do t = 2, 200
+      y(1, t) = y(1, t - 1) + 0.2_dp * e(t)
+    end do
+    y(1, :) = y(1, :) + 2.0_dp * sin(2 * acos(-1.0_dp) * [(t, t=1, 200)] / 20.0_dp) + u
+    allocate (irregular_t :: comps(1)%c)
+    allocate (level_t :: comps(2)%c)
+    comps(3)%c = cycle_t(period_min=5.0_dp, period_max=50.0_dp)
+    mod = structural_model(y, comps, info)
+  end function cycle_model
+
+  !> With `analytic`, variance parameters are scored and the cycle's
+  !> frequency and damping (in T) are marked as not covered.
+  subroutine test_hybrid_mask(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(structural_model_t) :: mod
+    real(dp) :: p0(5), score(5), llf, h, fd, pp(5), pm(5)
+    logical :: analytic(5)
+    integer :: info, i
+
+    mod = cycle_model()
+    p0 = [1.0_dp, 0.04_dp, 0.1_dp, 2 * acos(-1.0_dp) / 20, 0.9_dp]
+    call analytic_score(mod, p0, score, llf, info)
+    call check(error, info, SS_ERR_UNSUPPORTED, "without the mask")
+    if (allocated(error)) return
+    call analytic_score(mod, p0, score, llf, info, analytic)
+    call check(error, info, SS_OK, "with the mask")
+    if (allocated(error)) return
+    call check(error, all(analytic .eqv. [.true., .true., .true., .false., .false.]), "mask")
+    if (allocated(error)) return
+    do i = 1, 3
+      h = 1.0e-5_dp * p0(i)
+      pp = p0; pp(i) = p0(i) + h
+      pm = p0; pm(i) = p0(i) - h
+      fd = (mod%loglike(pp, info) - mod%loglike(pm, info)) / (2 * h)
+      call check(error, abs(score(i) - fd) <= 1.0e-5_dp * max(1.0_dp, abs(fd)), "score vs FD")
+      if (allocated(error)) return
+    end do
+  end subroutine test_hybrid_mask
+
+  !> A fit with the hybrid gradient reaches the same optimum as a fully
+  !> numerical one.
+  subroutine test_hybrid_fit(error)
+    type(error_type), allocatable, intent(out) :: error
+    type(structural_model_t) :: m1, m2
+    type(fit_result_t) :: r1, r2
+    type(fit_options_t) :: opts
+    integer :: info
+
+    m1 = cycle_model()
+    m2 = m1
+    opts%factr = 10.0_dp
+    opts%pgtol = 1.0e-9_dp
+    opts%compute_cov = .false.
+    call fit(m1, r1, options=opts, info=info)
+    call check(error, info, SS_OK, "hybrid fit")
+    if (allocated(error)) return
+    call check(error, r1%analytic_gradient, "hybrid gradient used")
+    if (allocated(error)) return
+    opts%gradient = GRADIENT_NUMERICAL
+    call fit(m2, r2, options=opts, info=info)
+    call check(error, abs(r1%llf - r2%llf) < 1.0e-6_dp, "same log likelihood")
+    if (allocated(error)) return
+    call check(error, maxval(abs(r1%params - r2%params) / max(abs(r2%params), 1.0e-3_dp)) < 1.0e-3_dp, &
+               "same estimates")
+  end subroutine test_hybrid_fit
 end module test_score

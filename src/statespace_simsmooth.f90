@@ -45,11 +45,11 @@ contains
   !> rep%y are ignored; y is fully simulated.
   subroutine simulate(rep, u_init, u_eps, u_eta, y, alpha, eps, eta, info)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(in) :: u_init(:), u_eps(:, :), u_eta(:, :)
-    real(dp), intent(out) :: y(:, :)       !< (p, n)
-    real(dp), intent(out) :: alpha(:, :)   !< (m, n)
-    real(dp), intent(out) :: eps(:, :)     !< (p, n)
-    real(dp), intent(out) :: eta(:, :)     !< (r, n)
+    real(dp), intent(in), contiguous :: u_init(:), u_eps(:, :), u_eta(:, :)
+    real(dp), intent(out), contiguous :: y(:, :)       !< (p, n)
+    real(dp), intent(out), contiguous :: alpha(:, :)   !< (m, n)
+    real(dp), intent(out), contiguous :: eps(:, :)     !< (p, n)
+    real(dp), intent(out), contiguous :: eta(:, :)     !< (r, n)
     integer, intent(out) :: info
     real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), S(:, :), SH(:, :), SQ(:, :)
     real(dp), allocatable :: anext(:)
@@ -102,7 +102,7 @@ contains
   !> Draw alpha, eps and eta given the data (DK 4.9.2, mean correction).
   subroutine simulation_smoother(rep, u_init, u_eps, u_eta, sim, info)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(in) :: u_init(:), u_eps(:, :), u_eta(:, :)
+    real(dp), intent(in), contiguous :: u_init(:), u_eps(:, :), u_eta(:, :)
     type(simsmooth_result_t), intent(out) :: sim
     integer, intent(out) :: info
     type(ssm_rep_t) :: star
@@ -145,8 +145,8 @@ contains
   subroutine djs_measurement_disturbances(rep, fres, u_eps, eps, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(in) :: u_eps(:, :)    !< (p, n)
-    real(dp), intent(out) :: eps(:, :)     !< (p, n)
+    real(dp), intent(in), contiguous :: u_eps(:, :)    !< (p, n)
+    real(dp), intent(out), contiguous :: eps(:, :)     !< (p, n)
     integer, intent(out) :: info
     real(dp), allocatable :: r(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), C(:, :), W(:, :)
     real(dp), allocatable :: Zt(:, :), Ht(:, :), dvec(:), CW(:, :)
@@ -198,10 +198,10 @@ contains
   subroutine djs_state_disturbances(rep, fres, u_eta, u_init, eta, alpha, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(in) :: u_eta(:, :)    !< (r, n)
-    real(dp), intent(in) :: u_init(:)      !< (m)
-    real(dp), intent(out) :: eta(:, :)     !< (r, n)
-    real(dp), intent(out) :: alpha(:, :)   !< (m, n)
+    real(dp), intent(in), contiguous :: u_eta(:, :)    !< (r, n)
+    real(dp), intent(in), contiguous :: u_init(:)      !< (m)
+    real(dp), intent(out), contiguous :: eta(:, :)     !< (r, n)
+    real(dp), intent(out), contiguous :: alpha(:, :)   !< (m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: rtil(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), C(:, :), W(:, :)
     real(dp), allocatable :: Zt(:, :), Qt(:, :), Rmat(:, :), dvec(:), CW(:, :)
@@ -253,7 +253,7 @@ contains
   !> S = L D^(1/2) from A = L D L'. For positive definite A this is the
   !> Cholesky factor.
   function psd_sqrt(A) result(S)
-    real(dp), intent(in) :: A(:, :)
+    real(dp), intent(in), contiguous :: A(:, :)
     real(dp), allocatable :: S(:, :)
     real(dp), allocatable :: D(:)
     integer :: j
@@ -267,7 +267,7 @@ contains
 
   !> Fill x with independent N(0, 1) draws (Box-Muller on random_number).
   subroutine draw_standard_normal(x)
-    real(dp), intent(out) :: x(:)
+    real(dp), intent(out), contiguous :: x(:)
     real(dp), parameter :: twopi = 6.283185307179586476925286766559_dp
     real(dp) :: u(2)
     integer :: i

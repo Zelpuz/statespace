@@ -2,6 +2,9 @@
 !>
 !> All wrappers take assumed-shape arrays and pass them straight to BLAS, so
 !> callers must pass contiguous arrays (whole arrays or `x(:,:,t)` slices).
+!> `gemm` and `gemv` are declared `contiguous`, and for small operands (the
+!> common case in state space models) use inline loops instead of BLAS,
+!> whose per-call overhead dominates at those sizes.
 module statespace_linalg
   use statespace_kinds, only: dp, SS_OK, SS_ERR_NOT_PD, SS_ERR_SINGULAR, SS_ERR_NOT_STATIONARY
   implicit none
@@ -9,6 +12,11 @@ module statespace_linalg
 
   public :: gemm, gemv, chol_inv, symmetrize, eye, solve, solve_lyapunov
   public :: ldl_psd, solve_unit_lower, is_diagonal, psd_solve, tria
+
+  !> Operands with m n k (gemm) or m n (gemv) up to this size use inline loops.
+  integer, parameter :: small_gemm = 1000, small_gemv = 400
+  !> chol_inv uses inline code up to this order.
+  integer, parameter :: small_chol = 16
 
   interface
     subroutine dgemm(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
@@ -69,37 +77,96 @@ module statespace_linalg
 
 contains
 
-  !> C <- alpha * op(A) * op(B) + beta * C, with op(X) = X or X'.
+  !> C <- alpha * op(A) * op(B) + beta * C, with op(X) = X or X'. As in
+  !> BLAS, C is not read when beta = 0.
   subroutine gemm(transa, transb, alpha, A, B, beta, C)
     character, intent(in) :: transa, transb
     real(dp), intent(in) :: alpha, beta
-    real(dp), intent(in) :: A(:, :), B(:, :)
-    real(dp), intent(inout) :: C(:, :)
-    integer :: k
+    real(dp), intent(in), contiguous :: A(:, :), B(:, :)
+    real(dp), intent(inout), contiguous :: C(:, :)
+    integer :: k, i, j, l
 
     if (transa == 'N') then
       k = size(A, 2)
     else
       k = size(A, 1)
     end if
-    call dgemm(transa, transb, size(C, 1), size(C, 2), k, alpha, A, max(1, size(A, 1)), &
-               B, max(1, size(B, 1)), beta, C, max(1, size(C, 1)))
+    if (size(C, 1) * size(C, 2) * k > small_gemm) then
+      call dgemm(transa, transb, size(C, 1), size(C, 2), k, alpha, A, max(1, size(A, 1)), &
+                 B, max(1, size(B, 1)), beta, C, max(1, size(C, 1)))
+      return
+    end if
+
+    if (beta == 0.0_dp) then
+      C = 0.0_dp
+    else if (beta /= 1.0_dp) then
+      C = beta * C
+    end if
+    if (transa == 'N') then
+      if (transb == 'N') then
+        do j = 1, size(C, 2)
+          do l = 1, k
+            C(:, j) = C(:, j) + (alpha * B(l, j)) * A(:, l)
+          end do
+        end do
+      else
+        do j = 1, size(C, 2)
+          do l = 1, k
+            C(:, j) = C(:, j) + (alpha * B(j, l)) * A(:, l)
+          end do
+        end do
+      end if
+    else
+      if (transb == 'N') then
+        do j = 1, size(C, 2)
+          do i = 1, size(C, 1)
+            C(i, j) = C(i, j) + alpha * dot_product(A(:, i), B(:, j))
+          end do
+        end do
+      else
+        do j = 1, size(C, 2)
+          do i = 1, size(C, 1)
+            C(i, j) = C(i, j) + alpha * dot_product(A(:, i), B(j, :))
+          end do
+        end do
+      end if
+    end if
   end subroutine gemm
 
-  !> y <- alpha * op(A) * x + beta * y.
+  !> y <- alpha * op(A) * x + beta * y. As in BLAS, y is not read when
+  !> beta = 0.
   subroutine gemv(trans, alpha, A, x, beta, y)
     character, intent(in) :: trans
     real(dp), intent(in) :: alpha, beta
-    real(dp), intent(in) :: A(:, :), x(:)
-    real(dp), intent(inout) :: y(:)
+    real(dp), intent(in), contiguous :: A(:, :), x(:)
+    real(dp), intent(inout), contiguous :: y(:)
+    integer :: i, j
 
-    call dgemv(trans, size(A, 1), size(A, 2), alpha, A, max(1, size(A, 1)), x, 1, beta, y, 1)
+    if (size(A, 1) * size(A, 2) > small_gemv) then
+      call dgemv(trans, size(A, 1), size(A, 2), alpha, A, max(1, size(A, 1)), x, 1, beta, y, 1)
+      return
+    end if
+
+    if (beta == 0.0_dp) then
+      y = 0.0_dp
+    else if (beta /= 1.0_dp) then
+      y = beta * y
+    end if
+    if (trans == 'N') then
+      do j = 1, size(A, 2)
+        y = y + (alpha * x(j)) * A(:, j)
+      end do
+    else
+      do i = 1, size(A, 2)
+        y(i) = y(i) + alpha * dot_product(A(:, i), x)
+      end do
+    end if
   end subroutine gemv
 
   !> Invert a symmetric positive definite matrix in place via Cholesky and
   !> return log|A|. Both triangles of the result are filled.
   subroutine chol_inv(A, logdet, info)
-    real(dp), intent(inout) :: A(:, :)
+    real(dp), intent(inout), contiguous :: A(:, :)
     real(dp), intent(out) :: logdet
     integer, intent(out) :: info
     integer :: i, j, n
@@ -115,6 +182,11 @@ contains
       end if
       logdet = log(A(1, 1))
       A(1, 1) = 1.0_dp / A(1, 1)
+      return
+    end if
+
+    if (n <= small_chol) then
+      call chol_inv_small(A, logdet, info)
       return
     end if
 
@@ -139,10 +211,50 @@ contains
     end do
   end subroutine chol_inv
 
+  !> chol_inv for small matrices, without LAPACK's per-call overhead:
+  !> A = L L', W = L^-1, A^-1 = W' W.
+  subroutine chol_inv_small(A, logdet, info)
+    real(dp), intent(inout), contiguous :: A(:, :)
+    real(dp), intent(out) :: logdet
+    integer, intent(out) :: info
+    real(dp) :: L(size(A, 1), size(A, 1)), W(size(A, 1), size(A, 1)), d
+    integer :: i, j, n
+
+    n = size(A, 1)
+    info = SS_OK
+    logdet = 0.0_dp
+    L = 0.0_dp
+    do j = 1, n
+      d = A(j, j) - sum(L(j, 1:j - 1)**2)
+      if (.not. (d > 0.0_dp)) then
+        info = SS_ERR_NOT_PD
+        return
+      end if
+      L(j, j) = sqrt(d)
+      logdet = logdet + log(d)
+      do i = j + 1, n
+        L(i, j) = (A(i, j) - sum(L(i, 1:j - 1) * L(j, 1:j - 1))) / L(j, j)
+      end do
+    end do
+    W = 0.0_dp
+    do j = 1, n
+      W(j, j) = 1.0_dp / L(j, j)
+      do i = j + 1, n
+        W(i, j) = -sum(L(i, j:i - 1) * W(j:i - 1, j)) / L(i, i)
+      end do
+    end do
+    do j = 1, n
+      do i = j, n
+        A(i, j) = sum(W(i:n, i) * W(i:n, j))
+        A(j, i) = A(i, j)
+      end do
+    end do
+  end subroutine chol_inv_small
+
   !> Solve A X = B for square A. B is overwritten with X; A is not modified.
   subroutine solve(A, B, info)
-    real(dp), intent(in) :: A(:, :)
-    real(dp), intent(inout) :: B(:, :)
+    real(dp), intent(in), contiguous :: A(:, :)
+    real(dp), intent(inout), contiguous :: B(:, :)
     integer, intent(out) :: info
     real(dp), allocatable :: LU(:, :)
     integer, allocatable :: ipiv(:)
@@ -163,8 +275,8 @@ contains
   !> so that P_k = sum_{j < 2^k} T^j V T'^j. Fails with SS_ERR_NOT_STATIONARY
   !> if T has an eigenvalue on or outside the unit circle.
   subroutine solve_lyapunov(T, V, P, info)
-    real(dp), intent(in) :: T(:, :), V(:, :)
-    real(dp), intent(out) :: P(:, :)
+    real(dp), intent(in), contiguous :: T(:, :), V(:, :)
+    real(dp), intent(out), contiguous :: P(:, :)
     integer, intent(out) :: info
     integer, parameter :: max_doublings = 100
     real(dp), allocatable :: A(:, :), AP(:, :), Anext(:, :)
@@ -195,8 +307,8 @@ contains
   !> to zero together with the matching column of L, so singular A (e.g. some
   !> exact observations) is allowed.
   subroutine ldl_psd(A, L, D)
-    real(dp), intent(in) :: A(:, :)
-    real(dp), intent(out) :: L(:, :), D(:)
+    real(dp), intent(in), contiguous :: A(:, :)
+    real(dp), intent(out), contiguous :: L(:, :), D(:)
     real(dp) :: tol
     integer :: i, j, n
 
@@ -218,8 +330,8 @@ contains
 
   !> B <- L^-1 B (or L'^-1 B if `transpose`) for unit lower triangular L.
   subroutine solve_unit_lower(L, B, transpose)
-    real(dp), intent(in) :: L(:, :)
-    real(dp), intent(inout) :: B(:, :)
+    real(dp), intent(in), contiguous :: L(:, :)
+    real(dp), intent(inout), contiguous :: B(:, :)
     logical, intent(in), optional :: transpose
     character :: trans
 
@@ -235,7 +347,7 @@ contains
   !> X = A^+ B for symmetric positive semi-definite A, via A = L D L' with
   !> zero pivots treated as a pseudo-inverse.
   function psd_solve(A, B) result(X)
-    real(dp), intent(in) :: A(:, :), B(:, :)
+    real(dp), intent(in), contiguous :: A(:, :), B(:, :)
     real(dp), allocatable :: X(:, :)
     real(dp), allocatable :: L(:, :), D(:)
     integer :: i
@@ -258,7 +370,7 @@ contains
   !> operation of square root filtering (DK 6.3), from the QR factorization
   !> U' = Q R, so that U = R' Q' and L = R'.
   function tria(U) result(L)
-    real(dp), intent(in) :: U(:, :)
+    real(dp), intent(in), contiguous :: U(:, :)
     real(dp), allocatable :: L(:, :)
     real(dp), allocatable :: A(:, :), tau(:), work(:)
     integer :: k, n, i, info
@@ -291,7 +403,7 @@ contains
 
   !> A <- (A + A') / 2.
   subroutine symmetrize(A)
-    real(dp), intent(inout) :: A(:, :)
+    real(dp), intent(inout), contiguous :: A(:, :)
     integer :: i, j
 
     do j = 2, size(A, 2)

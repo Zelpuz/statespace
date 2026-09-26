@@ -32,7 +32,7 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
-    real(dp), intent(out) :: L(:, :)
+    real(dp), intent(out), contiguous :: L(:, :)
     integer, intent(out) :: info
     real(dp), allocatable :: A(:, :), K(:)
     integer :: m, i, j, it, iz
@@ -70,7 +70,7 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
-    real(dp), intent(out) :: K(:, :), Finv(:, :)
+    real(dp), intent(out), contiguous :: K(:, :), Finv(:, :)
     integer, intent(out) :: info
     real(dp), allocatable :: Fo(:, :)
     integer, allocatable :: idx(:)
@@ -134,8 +134,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: n0
-    real(dp), intent(inout) :: alphahat(:, :)   !< (m, n)
-    real(dp), intent(inout) :: V(:, :, :)       !< (m, m, n)
+    real(dp), intent(inout), contiguous :: alphahat(:, :)   !< (m, n)
+    real(dp), intent(inout), contiguous :: V(:, :, :)       !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: B(:, :, :), zfv(:), ZFZ(:, :), L(:, :), PB(:, :)
     integer :: m, n, t, k
@@ -181,8 +181,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
-    real(dp), intent(out) :: path_a(:, :)       !< (m, n-t+1)
-    real(dp), intent(out) :: path_V(:, :, :)    !< (m, m, n-t+1)
+    real(dp), intent(out), contiguous :: path_a(:, :)       !< (m, n-t+1)
+    real(dp), intent(out), contiguous :: path_V(:, :, :)    !< (m, m, n-t+1)
     integer, intent(out) :: info
     real(dp), allocatable :: b(:, :), zfv(:), ZFZ(:, :), L(:, :), PB(:, :)
     integer :: k, j
@@ -220,8 +220,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: j
-    real(dp), intent(out) :: alphahat(:, :)     !< (m, n)
-    real(dp), intent(out) :: V(:, :, :)         !< (m, m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)     !< (m, n)
+    real(dp), intent(out), contiguous :: V(:, :, :)         !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: r(:), N(:, :), zfv(:), ZFZ(:, :), L(:, :)
     integer :: s, t, m
@@ -261,8 +261,8 @@ contains
   subroutine filtered_state_weights(rep, fres, Wa, Watt, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: Wa(:, :, :, :)     !< (m, p, n, n)
-    real(dp), intent(out) :: Watt(:, :, :, :)   !< (m, p, n, n)
+    real(dp), intent(out), contiguous :: Wa(:, :, :, :)     !< (m, p, n, n)
+    real(dp), intent(out), contiguous :: Watt(:, :, :, :)   !< (m, p, n, n)
     integer, intent(out) :: info
     real(dp), allocatable :: K(:, :), Finv(:, :), zfv(:), ZFZ(:, :), L(:, :), A(:, :), PZF(:, :)
     integer :: m, p, n, t, j, iz
@@ -310,7 +310,7 @@ contains
   subroutine whittle_smoother(rep, fres, alphahat, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: alphahat(:, :)     !< (m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)     !< (m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: anext(:), Winv(:, :), Wprev(:, :), Hinv(:, :), rhs(:, :), e(:), Tt(:, :)
     integer, allocatable :: idx(:)
@@ -377,7 +377,7 @@ contains
   subroutine fast_state_smoother(rep, fres, alphahat, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: alphahat(:, :)    !< (m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: r(:, :), r0(:), r1(:), u(:), vz(:), K0(:), K1(:), tmp(:), RQR(:, :)
     real(dp), allocatable :: RQ(:, :), Zo(:, :), vo(:), F1(:, :), F2(:, :), L0(:, :), L1(:, :)
@@ -466,8 +466,8 @@ contains
   subroutine classical_state_smoother(rep, fres, alphahat, V, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: alphahat(:, :)    !< (m, n)
-    real(dp), intent(out) :: V(:, :, :)        !< (m, m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
+    real(dp), intent(out), contiguous :: V(:, :, :)        !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: TP(:, :), J(:, :), D(:, :), JD(:, :)
     integer :: m, n, t, it
@@ -518,8 +518,8 @@ contains
   subroutine two_filter_smoother(rep, fres, alphahat, V, info)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
-    real(dp), intent(out) :: alphahat(:, :)    !< (m, n)
-    real(dp), intent(out) :: V(:, :, :)        !< (m, m, n)
+    real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
+    real(dp), intent(out), contiguous :: V(:, :, :)        !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: Iinfo(:, :), ivec(:), Hinv(:, :), Zo(:, :), ZtHinv(:, :), A(:, :)
     real(dp), allocatable :: B(:, :), RQ(:, :), G(:, :), W(:, :), rhs(:, :)
@@ -591,7 +591,7 @@ contains
     type(filter_result_t), intent(in) :: fres
     type(smoother_result_t), intent(in) :: sres
     integer, intent(in) :: t, j
-    real(dp), intent(out) :: C(:, :)
+    real(dp), intent(out), contiguous :: C(:, :)
     integer, intent(out) :: info
     real(dp), allocatable :: G(:, :), L(:, :), tmp(:, :), B(:, :)
     integer :: m, s, t0, t1
@@ -633,7 +633,7 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     type(smoother_result_t), intent(in) :: sres
-    real(dp), intent(out) :: acov(:, :, :)     !< (m, m, n-1)
+    real(dp), intent(out), contiguous :: acov(:, :, :)     !< (m, m, n-1)
     integer, intent(out) :: info
     integer :: t, stat
 
@@ -664,9 +664,9 @@ contains
   !> observations are zero.
   subroutine smoothed_state_weights(rep, W, C, A, info, j_list)
     type(ssm_rep_t), intent(in) :: rep
-    real(dp), intent(out) :: W(:, :, :, :)   !< (m, p, n, n)
-    real(dp), intent(out) :: C(:, :, :, :)   !< (m, m, n, n)
-    real(dp), intent(out) :: A(:, :, :)      !< (m, m, n)
+    real(dp), intent(out), contiguous :: W(:, :, :, :)   !< (m, p, n, n)
+    real(dp), intent(out), contiguous :: C(:, :, :, :)   !< (m, m, n, n)
+    real(dp), intent(out), contiguous :: A(:, :, :)      !< (m, m, n)
     integer, intent(out) :: info
     integer, intent(in), optional :: j_list(:)
     type(ssm_rep_t) :: base, unit
