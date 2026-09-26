@@ -1,0 +1,53 @@
+Road casualties and the seat belt law (DK §8.2)
+===============================================
+
+The log of monthly car drivers killed or seriously injured in Great
+Britain, January 1969 to December 1984 (Harvey and Durbin 1986). The basic
+structural model
+
+.. math::
+
+   y_t = \mu_t + \gamma_t + \varepsilon_t, \qquad \mu_{t+1} = \mu_t + \xi_t,
+
+with a trigonometric seasonal :math:`\gamma_t`, then the same with the log
+real petrol price and a level intervention for the seat belt law of
+February 1983 as regressors.
+
+Results
+-------
+
+==============================  ==============  ==============
+quantity                        DK              this library
+==============================  ==============  ==============
+:math:`\sigma^2_\varepsilon`    0.00341598      0.00341596
+:math:`\sigma^2_\xi`            0.000935852     0.000935879
+:math:`\sigma^2_\omega`         5.01096e-7      5.0098e-7
+petrol (rmse)                   -0.29140        -0.29140
+                                (0.09832)       (0.09832)
+seat belt law (rmse)            -0.23773        -0.23774
+                                (0.04632)       (0.04632)
+==============================  ==============  ==============
+
+The variances agree to 3-4 digits; the likelihood is flat in the seasonal
+variance. The law reduced the number of drivers killed or seriously injured
+by :math:`1 - e^{-0.238} = 21\%`.
+
+Two printed numbers follow other conventions:
+
+* DK's **prediction error variance**, 0.00586717, is the steady-state
+  :math:`\bar F` (DK §4.3.4), 0.0062583, times (n - d)/n = 180/192.
+* DK's **log likelihood**, 435.295, uses a constant we could not identify.
+  Ours, 168.859, is the diffuse log likelihood (DK §7.2.2) and equals
+  statsmodels'.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_8_2_seatbelt.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_8_2_seatbelt.txt
+   :language: text

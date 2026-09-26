@@ -1,0 +1,40 @@
+Series from two sources (DK §3.10.3)
+====================================
+
+A survey estimate :math:`y_t` of unemployment, subject to survey error, and
+an accurately measured related count :math:`x_t` (Harvey and Chung 2000),
+modelled jointly with correlated local linear trends (DK eq. 3.49):
+
+.. math::
+
+   (y_t, x_t)' = \mu_t + \varepsilon_t, \quad
+   \mu_{t+1} = \mu_t + \nu_t + \xi_t, \quad
+   \nu_{t+1} = \nu_t + \zeta_t,
+
+with full 2 × 2 covariances. The count is available a month before the
+survey, which enters as a missing survey value (DK §4.10).
+
+DK give no data; the example simulates them from the model, fits it, and
+compares the estimates of the survey's level with those of a univariate
+model.
+
+Results
+-------
+
+Using the count lowers the root mean squared error of the smoothed level
+from 0.353 to 0.307 and narrows the interval of the latest month's level,
+where the survey is missing, from ±0.61 to ±0.57. With 120 observations
+and estimated covariances the gain is modest; it grows with the
+correlation between the two levels.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_3_10_3_two_sources.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_3_10_3_two_sources.txt
+   :language: text

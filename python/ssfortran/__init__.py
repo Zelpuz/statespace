@@ -1,8 +1,14 @@
-"""ssfortran: linear Gaussian state space models (Durbin and Koopman 2012,
-Part I), computed by a Fortran library.
+"""Linear Gaussian state space models with a Fortran core.
 
-The matrix-level API is `Representation`; built-in models and estimation
-are added on top of it.
+``ssfortran`` covers Part I of Durbin and Koopman, *Time Series Analysis by
+State Space Methods* (2nd ed., 2012), cited as DK:
+
+* :class:`Representation`: the model's matrices and the algorithms of DK
+  ch. 4-7 (filtering, smoothing, likelihood, simulation, forecasting,
+  diagnostics);
+* :class:`StructuralModel`, :class:`MappedModel`, :class:`MLEModel`:
+  models with parameters, estimated by maximum likelihood;
+* :mod:`ssfortran.diagnostics`: residual tests.
 """
 
 from . import diagnostics
@@ -13,6 +19,7 @@ from .models import (
     ContinuousLevel,
     ContinuousTrend,
     FitResults,
+    ForecastResults,
     Irregular,
     Level,
     MappedModel,
@@ -43,7 +50,8 @@ from .representation import (
 __version__ = version()
 
 __all__ = [
-    "diagnostics", "Model", "StructuralModel", "MappedModel", "MLEModel", "FitResults", "fit_many",
+    "diagnostics", "Model", "StructuralModel", "MappedModel", "MLEModel", "FitResults", "ForecastResults",
+    "fit_many",
     "Irregular", "Level", "Trend", "Seasonal", "Cycle", "Regression", "ARIMA",
     "ContinuousLevel", "ContinuousTrend",
     "Representation", "AugmentedResults", "FilterResults", "SmootherResults", "StateSpaceError",

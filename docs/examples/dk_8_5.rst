@@ -1,0 +1,39 @@
+Spline smoothing of motorcycle data (DK §8.5)
+=============================================
+
+Head acceleration against time in a simulated motorcycle accident
+(Silverman 1985): 133 observations, irregularly spaced, some at the same
+time. The cubic smoothing spline is the smoothed level of a continuous-time
+smooth trend plus an irregular (DK §3.8.2, §3.9.2), and its smoothing
+parameter :math:`\lambda = \sigma^2_\zeta / \sigma^2_\varepsilon` is
+estimated by maximum likelihood.
+
+Results
+-------
+
+==============================  ==============  ==============
+quantity                        DK              this library
+==============================  ==============  ==============
+:math:`\psi = \log\lambda`      -3.59 (0.22)    -2.36 (0.44)
+:math:`\lambda`                 0.0275          0.0945
+AIC                             9.43            9.42
+==============================  ==============  ==============
+
+The AIC agrees but :math:`\lambda` does not. The profile log likelihood
+over :math:`\psi` has a single maximum, at -2.36; at DK's -3.59 it is 4.3
+lower, which would give an AIC of 9.49. DK's AIC is therefore that of this
+optimum, and their printed :math:`\lambda` comes from a scaling we could not
+identify. The spline itself matches SciPy's cubic smoothing spline in the
+tests.
+
+Program
+-------
+
+.. literalinclude:: ../../example/dk_8_5_spline.f90
+   :language: fortran
+
+Output
+------
+
+.. literalinclude:: output/dk_8_5_spline.txt
+   :language: text

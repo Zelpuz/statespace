@@ -4,9 +4,10 @@
 !> as statsmodels does. The gradient is the analytic score (DK 7.3.3, one
 !> smoother pass; see `statespace_score`) for the parameters it covers, with
 !> central differences for the others (parameters in Z or T, as DK
-!> recommend), or entirely by central differences when it covers none. Standard errors come from a numerical
-!> Hessian of the log likelihood in the unconstrained parameters, mapped to
-!> the constrained ones by the delta method (DK 7.3.6).
+!> recommend), or entirely by central differences when it covers none.
+!> Standard errors come from a numerical Hessian of the log likelihood in the
+!> unconstrained parameters, mapped to the constrained ones by the delta
+!> method (DK 7.3.6).
 !>
 !> `fit_many` fits independent models in parallel when the library is built
 !> with OpenMP (`--flag -fopenmp`); otherwise it runs them in turn.

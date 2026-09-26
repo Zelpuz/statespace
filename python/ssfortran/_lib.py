@@ -21,7 +21,23 @@ _ERRORS = {
 
 
 class StateSpaceError(RuntimeError):
-    """An error reported by the Fortran library, with its status `code`."""
+    """An error reported by the Fortran library.
+
+    Parameters
+    ----------
+    code : int
+        Status code: 1 inconsistent dimensions, 2 matrix not positive
+        definite, 3 missing or invalid initialization, 4 not supported for
+        this model, 5 singular linear system, 6 transition matrix not
+        stationary, 7 iteration did not converge.
+    where : str
+        The library routine that reported it.
+
+    Attributes
+    ----------
+    code : int
+        The status code.
+    """
 
     def __init__(self, code, where):
         self.code = code
@@ -194,6 +210,13 @@ def ptr(a):
 
 
 def version():
+    """Return the version of the Fortran library.
+
+    Returns
+    -------
+    str
+        The version, e.g. ``"0.1.0"``.
+    """
     buf = ctypes.create_string_buffer(32)
     call("ss_version", buf, len(buf))
     return buf.value.decode()

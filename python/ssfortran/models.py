@@ -1,10 +1,23 @@
-"""Models with parameters, and maximum likelihood estimation.
+"""Models with parameters and their estimation by maximum likelihood.
 
-`StructuralModel` assembles the built-in components (Durbin and Koopman
-2012, ch. 3): irregular, level, trend, seasonal, cycle, regression, ARIMA
-and continuous-time components, for one series or several (SUTSE), with
-optional signal loadings. Everything per likelihood evaluation runs in
-Fortran; `fit_many` fits many models in parallel.
+A model maps a parameter vector to the system matrices of a
+:class:`~ssfortran.Representation`. Three kinds are provided:
+
+* :class:`StructuralModel` assembles built-in components (DK ch. 3):
+  irregular, level, trend, seasonal, cycle, regression, ARIMA and
+  continuous-time components, for one series or several.
+* :class:`MappedModel` is declared: each parameter sets given matrix
+  entries, with a transform to the optimizer's unconstrained scale.
+* :class:`MLEModel` is subclassed, as statsmodels' ``MLEModel``: Python code
+  sets the matrices from the parameters.
+
+The first two run entirely in Fortran and can be fitted in parallel with
+:func:`fit_many`; the third calls Python at every likelihood evaluation.
+
+Estimation (:meth:`Model.fit`) maximizes the log likelihood with L-BFGS-B
+over the unconstrained parameters. The gradient uses the analytic score of
+DK §7.3.3 for parameters in H, R, Q and a stationary initial variance, and
+central differences for parameters in Z or T.
 """
 
 import ctypes
@@ -36,21 +49,57 @@ def _cov(c):
 
 @dataclass
 class Irregular:
-    """eps_t ~ N(0, Sigma_eps); `weights` (n) scale it per period (DK 3.8)."""
+    """Observation disturbance :math:`\\varepsilon_t \\sim N(0, \\Sigma_\\varepsilon)`.
+
+    Always acts on the observations.
+
+    Parameters
+    ----------
+    cov : {"diagonal", "full", None}
+        Form of :math:`\\Sigma_\\varepsilon` across series; ``"full"``
+        estimates it through its Cholesky factor. ``None`` removes the
+        irregular.
+    weights : array_like, shape (n,), optional
+        :math:`H_t = w_t \\Sigma_\\varepsilon`, for unequally spaced or
+        aggregated observations (DK §3.8).
+    """
     cov: str = "diagonal"
     weights: object = None
 
 
 @dataclass
 class Level:
-    """Random walk level (DK 2, 3.3)."""
+    """Random walk level :math:`\\mu_{t+1} = \\mu_t + \\xi_t` (DK ch. 2, §3.2.1).
+
+    Parameters
+    ----------
+    cov : {"diagonal", "full", None}
+        Form of :math:`Var(\\xi_t)` across series (DK §3.3); ``None`` gives
+        a fixed level.
+    at_observations : bool
+        Act on the observations rather than the signals when the model has
+        loadings.
+    """
     cov: str = "diagonal"
     at_observations: bool = False
 
 
 @dataclass
 class Trend:
-    """Local linear trend (DK 3.2); level_cov=None gives the smooth trend."""
+    """Local linear trend (DK §3.2.1).
+
+    :math:`\\mu_{t+1} = \\mu_t + \\nu_t + \\xi_t`,
+    :math:`\\nu_{t+1} = \\nu_t + \\zeta_t`.
+
+    Parameters
+    ----------
+    level_cov, slope_cov : {"diagonal", "full", None}
+        Forms of :math:`Var(\\xi_t)` and :math:`Var(\\zeta_t)`.
+        ``level_cov=None`` gives the smooth trend (integrated random walk);
+        both ``None`` a deterministic linear trend.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     level_cov: str = "diagonal"
     slope_cov: str = "diagonal"
     at_observations: bool = False
@@ -58,8 +107,20 @@ class Trend:
 
 @dataclass
 class Seasonal:
-    """Seasonal of `period`: 'dummy', 'trig' or 'harrison-stevens' (DK 3.2.2);
-    cov=None for a fixed seasonal."""
+    """Seasonal component of a given period (DK §3.2.2).
+
+    Parameters
+    ----------
+    period : int
+        Number of periods per cycle, e.g. 12 for monthly data.
+    form : {"dummy", "trig", "harrison-stevens"}
+        Dummy (s - 1 states), trigonometric (s - 1 states, all harmonics
+        with one variance) or Harrison-Stevens (s states).
+    cov : {"diagonal", "full", None}
+        Form of the disturbance variance; ``None`` for a fixed seasonal.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     period: int
     form: str = "dummy"
     cov: str = "diagonal"
@@ -68,8 +129,27 @@ class Seasonal:
 
 @dataclass
 class Cycle:
-    """Cycle (DK 3.2.4), damped (stationary) by default; the period is kept
-    within `period_bounds` (in observations; upper None = the sample size)."""
+    """Stochastic cycle (DK §3.2.4).
+
+    :math:`(c_{t+1}, c^*_{t+1})' = \\rho C(\\lambda) (c_t, c^*_t)' + w_t` with
+    :math:`C(\\lambda)` the rotation by frequency :math:`\\lambda`.
+    Parameters: the disturbance variance, :math:`\\lambda` and, if damped,
+    :math:`\\rho`.
+
+    Parameters
+    ----------
+    cov : {"diagonal", "full", None}
+        Form of :math:`Var(w_t)`.
+    damped : bool
+        Estimate :math:`\\rho \\in (0, 1)`; the cycle is then stationary and
+        starts from its unconditional distribution. Otherwise
+        :math:`\\rho = 1` and the cycle is diffuse.
+    period_bounds : tuple of float
+        Bounds on the period :math:`2\\pi / \\lambda`, in observations;
+        ``None`` as upper bound means the sample size.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     cov: str = "diagonal"
     damped: bool = True
     period_bounds: tuple = (2.0, None)
@@ -78,8 +158,22 @@ class Cycle:
 
 @dataclass
 class Regression:
-    """Regression effects x_t' beta_t on `series` (0-based) (DK 3.2.5, 3.6);
-    `random_walk` (bool or one per column) makes coefficients time-varying."""
+    """Regression effects :math:`x_t' \\beta_t` (DK §3.2.5, §3.6).
+
+    The coefficients are diffuse states, fixed or random walks.
+
+    Parameters
+    ----------
+    exog : array_like, shape (n,) or (n, k)
+        Regressors; also interventions (step, pulse or slope dummies).
+    random_walk : bool or sequence of bool
+        Make all, or the flagged, coefficients random walks with estimated
+        variances (DK eq. 3.15).
+    series : int
+        The series (0-based) the effects enter.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     exog: object
     random_walk: object = False
     series: int = 0
@@ -88,7 +182,26 @@ class Regression:
 
 @dataclass
 class ARIMA:
-    """ARIMA(p, d, q)(P, D, Q)_s (DK 3.4), same state layout as SARIMAX."""
+    """ARIMA(p, d, q)(P, D, Q)_s component (DK §3.4).
+
+    The differences are states (diffuse), as in DK §3.4 and statsmodels'
+    SARIMAX; the ARMA part is stationary. Parameters: the AR, seasonal AR,
+    MA and seasonal MA coefficients, then the innovation variance.
+
+    Parameters
+    ----------
+    order : tuple of int
+        (p, d, q).
+    seasonal_order : tuple of int
+        (P, D, Q, s), with D at most 1.
+    series : int
+        The series (0-based).
+    enforce_stationarity, enforce_invertibility : bool
+        Keep the AR polynomials stationary and the MA polynomials
+        invertible (Monahan 1984).
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     order: tuple = (1, 0, 0)
     seasonal_order: tuple = (0, 0, 0, 0)
     series: int = 0
@@ -99,15 +212,37 @@ class ARIMA:
 
 @dataclass
 class ContinuousLevel:
-    """Continuous-time level observed at `times` (DK 3.8.1)."""
+    """Level in continuous time observed at arbitrary times (DK §3.8.1).
+
+    Between observations the variance of the change is
+    :math:`\\sigma^2 \\delta_t`, :math:`\\delta_t = \\tau_{t+1} - \\tau_t`.
+
+    Parameters
+    ----------
+    times : array_like, shape (n,)
+        Increasing observation times; repeated times are allowed.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     times: object
     at_observations: bool = False
 
 
 @dataclass
 class ContinuousTrend:
-    """Continuous-time smooth trend at `times` (DK 3.8.2); with an irregular
-    this is the cubic smoothing spline (DK 3.9.2)."""
+    """Smooth trend in continuous time observed at arbitrary times (DK §3.8.2).
+
+    With an :class:`Irregular`, the smoothed level is the cubic smoothing
+    spline with smoothing parameter :math:`\\sigma^2_\\varepsilon / \\sigma^2`
+    (DK §3.9.2).
+
+    Parameters
+    ----------
+    times : array_like, shape (n,)
+        Increasing observation times; repeated times are allowed.
+    at_observations : bool
+        Act on the observations rather than the signals.
+    """
     times: object
     at_observations: bool = False
 
@@ -116,24 +251,74 @@ class ContinuousTrend:
 
 @dataclass
 class ForecastResults:
-    """Out-of-sample forecasts (DK 4.11): predicted_mean (steps,) for one
-    series or (steps, p), and var_pred_mean (steps, p, p)."""
+    """Forecasts past the end of the sample (DK §4.11).
+
+    Attributes
+    ----------
+    predicted_mean : ndarray, shape (steps,) or (steps, p)
+        :math:`E(y_{n+j} | Y_n)`; one column per series.
+    var_pred_mean : ndarray, shape (steps, p, p)
+        :math:`Var(y_{n+j} | Y_n)`.
+    """
     predicted_mean: np.ndarray
     var_pred_mean: np.ndarray
 
     @property
     def se_mean(self):
+        """Standard errors of the forecasts, shaped as `predicted_mean`."""
         se = np.sqrt(np.diagonal(self.var_pred_mean, axis1=1, axis2=2))
         return se if se.shape[1] > 1 else se[:, 0]
 
     def conf_int(self, alpha=0.05):
-        """(lower, upper) of the 1 - alpha intervals, series by series."""
+        """Compute pointwise normal confidence intervals.
+
+        Parameters
+        ----------
+        alpha : float, optional
+            One minus the coverage.
+
+        Returns
+        -------
+        lower, upper : ndarray
+            Bounds, shaped as `predicted_mean`.
+        """
         z = NormalDist().inv_cdf(1 - alpha / 2)
         return self.predicted_mean - z * self.se_mean, self.predicted_mean + z * self.se_mean
 
 @dataclass
 class FitResults:
-    """Maximum likelihood estimates (DK 7.3)."""
+    """Maximum likelihood estimates and the fitted model (DK §7.3).
+
+    Attributes
+    ----------
+    model : Model
+        The model that was fitted.
+    params : ndarray, shape (k,)
+        Estimates, constrained.
+    param_names : list of str
+        Parameter names.
+    bse : ndarray, shape (k,)
+        Standard errors; NaN if the Hessian was not negative definite.
+    cov_params : ndarray, shape (k, k)
+        Covariance of the estimates: the inverse of the negative Hessian in
+        the unconstrained parameters, mapped to the constrained ones by the
+        delta method (DK §7.3.6).
+    llf : float
+        Maximized log likelihood.
+    scale : float
+        Estimated scale when it is concentrated out, else 1.
+    aic, bic : float
+        Information criteria, counting the diffuse states and a
+        concentrated scale as parameters (DK §7.4, not divided by n).
+    niter, nfev : int
+        Optimizer iterations and log likelihood evaluations.
+    converged : bool
+        Whether L-BFGS-B met its convergence criterion.
+    analytic_gradient : bool
+        Whether the analytic score was used for at least one parameter.
+    message : str
+        The optimizer's final message.
+    """
     model: "Model" = field(repr=False)
     params: np.ndarray
     param_names: list
@@ -150,17 +335,56 @@ class FitResults:
     message: str
 
     def smooth(self):
-        """Filter and smoother at the estimates."""
+        """Run the filter and smoother at the estimates.
+
+        Returns
+        -------
+        SmootherResults
+            Smoothed states and disturbances.
+        """
         return self.model.smooth(self.params)
 
     def filter(self):
+        """Run the filter at the estimates.
+
+        Returns
+        -------
+        FilterResults
+            The filter output.
+        """
         return self.model.filter(self.params)
 
     def estimation_bias(self, ndraw=1000, antithetic=True, seed=None, variance=False):
-        """Bias of the smoothed state from estimating the parameters (DK
-        7.3.7, eq. 7.20): draws of the unconstrained parameters from their
-        estimated distribution. Returns bias_alpha (m, n), and bias_V
-        (m, m, n) with variance=True. Needs cov_params."""
+        """Estimate the bias in the smoothed state from estimating the parameters.
+
+        DK §7.3.7, eq. 7.20: treating :math:`\\hat\\psi` as the true value,
+        draw :math:`\\psi^{(i)}` from :math:`N(\\hat\\psi, \\Omega)` on the
+        unconstrained scale and average
+        :math:`\\hat\\alpha(\\psi^{(i)}) - \\hat\\alpha(\\hat\\psi)`.
+
+        Parameters
+        ----------
+        ndraw : int, optional
+            Number of draws; even when `antithetic`.
+        antithetic : bool, optional
+            Pair each draw with its reflection about :math:`\\hat\\psi`.
+        seed : int, optional
+            Seed of the library's random numbers, for reproducible results.
+        variance : bool, optional
+            Also return the bias in the smoothed state variance.
+
+        Returns
+        -------
+        bias_alpha : ndarray, shape (m, n)
+            Bias in the smoothed state.
+        bias_V : ndarray, shape (m, m, n)
+            Bias in its variance; only with ``variance=True``.
+
+        Raises
+        ------
+        ValueError
+            If `cov_params` is not available.
+        """
         if not np.all(np.isfinite(self.cov_params)):
             raise ValueError("estimation_bias needs cov_params (fit with compute_cov=True)")
         m, n = self.model.k_states, self.model.nobs
@@ -185,40 +409,91 @@ class FitResults:
 
     @property
     def fittedvalues(self):
-        """One-step-ahead predictions of y."""
+        """One-step predictions of y, shape (n,) or (n, p)."""
         return self._series(self.filter().forecasts)
 
     @property
     def resid(self):
-        """One-step-ahead forecast errors v_t."""
+        """One-step prediction errors :math:`v_t`, shape (n,) or (n, p)."""
         return self._series(self.filter().forecasts_error)
 
     @property
     def standardized_residuals(self):
-        """Standardized one-step forecast errors (DK 7.5); NaN in the diffuse
-        period and where missing."""
+        """Standardized prediction errors (DK §7.5); NaN where missing or diffuse."""
         return self._series(self.filter().standardized_forecasts_error)
 
     def components(self, variance=False):
-        """Smoothed components of a StructuralModel at the estimates."""
+        """Compute the smoothed components at the estimates.
+
+        Parameters
+        ----------
+        variance : bool, optional
+            Also return their variances.
+
+        Returns
+        -------
+        dict or tuple of dict
+            See :meth:`Model.components`.
+        """
         return self.model.components(self.params, variance=variance)
 
     def get_forecast(self, steps):
-        """Forecasts `steps` periods past the sample (time-invariant models)."""
+        """Forecast past the end of the sample (DK §4.11).
+
+        Parameters
+        ----------
+        steps : int
+            Number of periods ahead.
+
+        Returns
+        -------
+        ForecastResults
+            Forecasts and their variances.
+
+        Raises
+        ------
+        StateSpaceError
+            With code 4 for models with time-varying system matrices.
+        """
         rep = self.model.representation(self.params)
         mean, cov = rep.forecast(int(steps))
         return ForecastResults(predicted_mean=mean.T if mean.shape[0] > 1 else mean[0],
                                var_pred_mean=np.moveaxis(cov, 2, 0))
 
     def forecast(self, steps):
+        """Forecast past the end of the sample.
+
+        Parameters
+        ----------
+        steps : int
+            Number of periods ahead.
+
+        Returns
+        -------
+        ndarray
+            ``get_forecast(steps).predicted_mean``.
+        """
         return self.get_forecast(steps).predicted_mean
 
     # -- summaries ---------------------------------------------------------
 
     def diagnostics(self, lags=None):
-        """Ljung-Box Q, Jarque-Bera and heteroskedasticity H tests on the
-        standardized residuals of the first series after the diffuse period
-        (DK 2.12, 7.5), as a dict."""
+        """Test the standardized residuals (DK §2.12, §7.5).
+
+        Uses the first series, after the diffuse periods.
+
+        Parameters
+        ----------
+        lags : int, optional
+            Lags of the Ljung-Box test; default min(10, n/5).
+
+        Returns
+        -------
+        dict
+            ``ljung_box``: (lags, Q, p-value); ``jarque_bera``: (statistic,
+            p-value); ``skew``, ``kurtosis``; ``heteroskedasticity``: (H,
+            p-value).
+        """
         from . import diagnostics as dg
         f = self.filter()
         e = f.standardized_forecasts_error[0, f.diagnostic_start:]
@@ -231,8 +506,21 @@ class FitResults:
                 "skew": skew, "kurtosis": kurt, "heteroskedasticity": (h, hp)}
 
     def summary(self, alpha=0.05):
-        """Estimates with standard errors, z statistics, p-values and 1 - alpha
-        confidence intervals, fit statistics and residual diagnostics."""
+        """Summarize the estimates, the fit and the residual tests.
+
+        Parameters
+        ----------
+        alpha : float, optional
+            One minus the coverage of the confidence intervals.
+
+        Returns
+        -------
+        str
+            A table of estimates with standard errors, z statistics,
+            p-values and confidence intervals; the log likelihood, AIC, BIC
+            and number of diffuse periods; and the tests of
+            :meth:`diagnostics`.
+        """
         z = NormalDist().inv_cdf(1 - alpha / 2)
         f = self.filter()
         w = max(12, max(len(n) for n in self.param_names))
@@ -269,7 +557,18 @@ class FitResults:
 # -------------------------------------------------------------------- models
 
 class Model:
-    """A model with parameters, held by the Fortran library (base class)."""
+    """Base class of models with parameters, held by the Fortran library.
+
+    Not instantiated directly; see :class:`StructuralModel`,
+    :class:`MappedModel` and :class:`MLEModel`.
+
+    Attributes
+    ----------
+    k_params : int
+        Number of parameters.
+    nobs, k_endog, k_states, k_posdef : int
+        n, p, m and r of the representation.
+    """
 
     def _attach(self, handle):
         self._h = handle
@@ -281,14 +580,19 @@ class Model:
 
     @property
     def ssm(self):
-        """The model's own representation (borrowed), e.g. to set
-        filter_method or tol_steady before fitting."""
+        """The model's own representation.
+
+        Changes to it, such as ``filter_method`` or ``tol_steady``, apply to
+        later likelihood evaluations. Its system matrices reflect the last
+        parameters evaluated.
+        """
         h = ctypes.c_void_p()
         self._call("ss_model_rep", self._h, ctypes.byref(h))
         return Representation._wrap(h, owner=self)
 
     @property
     def param_names(self):
+        """Parameter names, e.g. ``"sigma2.level"``."""
         width = 32
         buf = ctypes.create_string_buffer(width * self.k_params)
         self._call("ss_model_param_names", self._h, width, buf)
@@ -297,12 +601,19 @@ class Model:
 
     @property
     def start_params(self):
+        """Starting values for estimation, constrained."""
         out = np.empty(self.k_params)
         self._call("ss_model_start_params", self._h, ptr(out))
         return out
 
     @property
     def concentrate_scale(self):
+        """Whether a scale is concentrated out of the likelihood.
+
+        When true, H, Q and :math:`P_*` set by the parameters are relative
+        to a scale :math:`\\sigma^2`, which is estimated in closed form
+        (DK §2.10.2) and is not a parameter.
+        """
         return getattr(self, "_concentrate", False)
 
     @concentrate_scale.setter
@@ -326,20 +637,56 @@ class Model:
         self._check_callbacks()
 
     def transform_params(self, unconstrained):
+        """Map unconstrained values to parameters.
+
+        Parameters
+        ----------
+        unconstrained : array_like, shape (k,)
+            Values on the optimizer's scale.
+
+        Returns
+        -------
+        ndarray, shape (k,)
+            Constrained parameters, e.g. variances :math:`\\exp(2x)`
+            (DK §7.3.2).
+        """
         x = self._params(unconstrained)
         out = np.empty(self.k_params)
         self._call("ss_model_transform", self._h, ptr(x), ptr(out))
         return out
 
     def untransform_params(self, constrained):
+        """Map parameters to the optimizer's unconstrained scale.
+
+        Parameters
+        ----------
+        constrained : array_like, shape (k,)
+            Parameters.
+
+        Returns
+        -------
+        ndarray, shape (k,)
+            The inverse of :meth:`transform_params`.
+        """
         p = self._params(constrained)
         out = np.empty(self.k_params)
         self._call("ss_model_untransform", self._h, ptr(p), ptr(out))
         return out
 
     def loglike(self, params):
-        """Log likelihood at constrained params (concentrated if
-        concentrate_scale; the scale is then in `self.scale`)."""
+        """Evaluate the log likelihood.
+
+        Parameters
+        ----------
+        params : array_like, shape (k,)
+            Constrained parameters.
+
+        Returns
+        -------
+        float
+            Log likelihood, concentrated when `concentrate_scale` is set; the
+            scale is then in :attr:`scale`.
+        """
         p = self._params(params)
         llf = ctypes.c_double()
         self._call("ss_model_loglike", self._h, ptr(p), ctypes.byref(llf))
@@ -347,25 +694,73 @@ class Model:
 
     @property
     def scale(self):
+        """Concentrated scale at the last likelihood evaluation."""
         s = ctypes.c_double()
         self._call("ss_model_scale", self._h, ctypes.byref(s))
         return s.value
 
     def representation(self, params):
-        """A new Representation at params (on the data's scale)."""
+        """Build the representation at given parameters.
+
+        Parameters
+        ----------
+        params : array_like, shape (k,)
+            Constrained parameters.
+
+        Returns
+        -------
+        Representation
+            A copy, on the data's scale when the scale is concentrated out.
+        """
         p = self._params(params)
         h = ctypes.c_void_p()
         self._call("ss_model_rep_at", self._h, ptr(p), ctypes.byref(h))
         return Representation._wrap(h, owner=None)
 
     def filter(self, params) -> FilterResults:
+        """Run the Kalman filter at given parameters.
+
+        Parameters
+        ----------
+        params : array_like, shape (k,)
+            Constrained parameters.
+
+        Returns
+        -------
+        FilterResults
+            The filter output.
+        """
         return self.representation(params).filter()
 
     def components(self, params, variance=False):
-        """The smoothed contribution of each component of a StructuralModel
-        to the observations, Z_block alphahat_block (and for the irregular,
-        the smoothed eps), as {name: (n,) or (n, p)}.
-        With variance=True, also {name: variances}."""
+        """Compute the smoothed contribution of each component to the data.
+
+        For a component with states :math:`b`, the contribution is
+        :math:`Z_{t,b} \\hat\\alpha_{t,b}`; for the irregular it is
+        :math:`\\hat\\varepsilon_t`. The contributions add up to the
+        observations.
+
+        Parameters
+        ----------
+        params : array_like, shape (k,)
+            Constrained parameters.
+        variance : bool, optional
+            Also return the variances of the contributions.
+
+        Returns
+        -------
+        components : dict
+            ``{name: ndarray}``, shape (n,) or (n, p). Names are the
+            component kinds (``"level"``, ``"seasonal"``, ...), numbered
+            when repeated.
+        variances : dict
+            The same for the variances; only with ``variance=True``.
+
+        Raises
+        ------
+        TypeError
+            If the model is not a :class:`StructuralModel`.
+        """
         maxc = 64
         first, size, at = (np.zeros(maxc, dtype=np.int32) for _ in range(3))
         nc = ctypes.c_int()
@@ -399,13 +794,76 @@ class Model:
         return (out, var) if variance else out
 
     def smooth(self, params) -> SmootherResults:
+        """Run the filter and smoother at given parameters.
+
+        Parameters
+        ----------
+        params : array_like, shape (k,)
+            Constrained parameters.
+
+        Returns
+        -------
+        SmootherResults
+            Smoothed states and disturbances.
+        """
         return self.representation(params).smooth()
 
     def fit(self, start_params=None, maxiter=500, m=10, factr=1e7, pgtol=1e-5,
             compute_cov=True, gradient="auto"):
-        """Maximum likelihood with L-BFGS-B (statsmodels' defaults). The
-        gradient is DK's analytic score where it applies (7.3.3) and central
-        differences for parameters in Z or T."""
+        """Estimate the parameters by maximum likelihood (DK §7.3).
+
+        L-BFGS-B minimizes -loglike / n over the unconstrained parameters.
+        The defaults are those of statsmodels.
+
+        Parameters
+        ----------
+        start_params : array_like, optional
+            Constrained starting values; default :attr:`start_params`.
+        maxiter : int, optional
+            Maximum number of iterations.
+        m : int, optional
+            Number of L-BFGS corrections.
+        factr : float, optional
+            Stop when the relative reduction of the objective is below
+            ``factr`` times the machine epsilon; 10 gives a tight optimum.
+        pgtol : float, optional
+            Stop when the projected gradient is below `pgtol`.
+        compute_cov : bool, optional
+            Compute `cov_params` and `bse` from a numerical Hessian.
+        gradient : {"auto", "analytic", "numerical"}, optional
+            ``"auto"`` uses the analytic score where it applies (DK §7.3.3)
+            and central differences elsewhere.
+
+        Returns
+        -------
+        FitResults
+            Estimates and fit statistics.
+
+        Raises
+        ------
+        StateSpaceError
+            If the likelihood cannot be evaluated at the start.
+
+        Notes
+        -----
+        The score covers parameters in H, R, Q and :math:`P_*` through the
+        smoothed disturbances (DK eq. 7.14, 7.16). Parameters that move Z or
+        T get central differences, as DK recommend. Standard errors come
+        from the Hessian in the unconstrained parameters and the delta
+        method.
+
+        Examples
+        --------
+        A local level with variances 1 (irregular) and 0.25 (level):
+
+        >>> rng = np.random.default_rng(2)
+        >>> y = np.cumsum(0.5 * rng.standard_normal(1000)) + rng.standard_normal(1000)
+        >>> res = ss.StructuralModel(y, [ss.Irregular(), ss.Level()]).fit()
+        >>> res.param_names
+        ['sigma2.irregular', 'sigma2.level']
+        >>> np.round(res.params, 2)
+        array([1.04, 0.22])
+        """
         h = ctypes.c_void_p()
         x0 = None if start_params is None else self._params(start_params)
         start = None if x0 is None else ptr(x0)
@@ -420,19 +878,52 @@ class Model:
 
 
 class StructuralModel(Model):
-    """Components assembled into one model (DK ch. 3).
+    """A model assembled from structural components (DK ch. 3).
+
+    The state vector stacks the components' states in the order given,
+    and the system matrices are block diagonal (DK eq. 3.10). Each block is
+    initialized as its component needs: diffuse for nonstationary
+    components, from the unconditional distribution for stationary ones
+    (DK §5.6).
 
     Parameters
     ----------
-    endog : array_like, (n,) or (n, p)
-        Observations, time first; NaN for missing values.
+    endog : array_like, shape (n,) or (n, p)
+        Observations, time first; NaN marks missing values.
     components : list
-        Irregular, Level, Trend, Seasonal, Cycle, Regression, ARIMA,
-        ContinuousLevel, ContinuousTrend, in the order of the state vector.
-    loading, loading_free : array_like (p, p_sig), optional
-        Signal loadings Z = Lambda Z_sig (DK 3.3.2, 3.7) and which of their
-        entries are estimated. Components not marked `at_observations`
-        then describe the p_sig signals.
+        :class:`Irregular`, :class:`Level`, :class:`Trend`,
+        :class:`Seasonal`, :class:`Cycle`, :class:`Regression`,
+        :class:`ARIMA`, :class:`ContinuousLevel` or :class:`ContinuousTrend`
+        instances. With p > 1 each applies to every series (seemingly
+        unrelated time series equations, DK §3.3), except
+        :class:`Regression` and :class:`ARIMA`, which apply to one series.
+    loading : array_like, shape (p, p_sig), optional
+        Signal loadings :math:`\\Lambda`: components not marked
+        ``at_observations`` describe p_sig signals, and
+        :math:`Z = \\Lambda Z_{sig}` (DK §3.3.2, §3.7).
+    loading_free : array_like of bool, shape (p, p_sig), optional
+        Entries of `loading` to estimate; they become the last parameters.
+
+    Notes
+    -----
+    Parameters are ordered component by component. Variances are mapped to
+    the optimizer's scale by :math:`\\sigma^2 = \\exp(2\\psi)` (DK §7.3.2);
+    full covariances through a Cholesky factor with log diagonal.
+
+    Examples
+    --------
+    A basic structural model: level, trigonometric seasonal and irregular
+    (DK §8.2):
+
+    >>> rng = np.random.default_rng(2)
+    >>> season = np.tile([1.0, -0.5, 0.3, -0.8], 30)
+    >>> y = np.cumsum(0.2 * rng.standard_normal(120)) + season + 0.3 * rng.standard_normal(120)
+    >>> mod = ss.StructuralModel(y, [ss.Irregular(), ss.Level(), ss.Seasonal(4, "trig")])
+    >>> mod.param_names
+    ['sigma2.irregular', 'sigma2.level', 'sigma2.seasonal']
+    >>> res = mod.fit()
+    >>> sorted(res.components())
+    ['irregular', 'level', 'seasonal']
     """
 
     def __init__(self, endog, components, loading=None, loading_free=None):
@@ -510,25 +1001,47 @@ class StructuralModel(Model):
 
 
 class MappedModel(Model):
-    """A model given by which matrix entries each parameter sets; no Python
-    runs during estimation, and `fit_many` can fit it in parallel.
+    """A model declared by the matrix entries each parameter sets.
+
+    The declaration is held by the library, so no Python runs during
+    estimation and :func:`fit_many` can fit the model in parallel.
 
     Parameters
     ----------
     representation : Representation
-        The fixed entries and the initialization (copied).
+        The fixed entries and the initialization; copied.
     k_params : int
+        Number of parameters.
     param_names : list of str, optional
+        Parameter names; default ``param1``, ``param2``, ...
     start_params : array_like, optional
-        Constrained starting values (default 0.1).
+        Constrained starting values; default 0.1 each.
 
-    Declare the map with `map`, `cov` and `constrain`, e.g. for the local
-    level model::
+    See Also
+    --------
+    MLEModel : Models whose matrices are set by Python code.
 
-        mod = MappedModel(rep, 2, ["sigma2.irregular", "sigma2.level"])
-        mod.map(0, "obs_cov", 0, 0)
-        mod.map(1, "state_cov", 0, 0)
-        mod.constrain([0, 1], "positive")
+    Notes
+    -----
+    Declare the map with :meth:`map` (single entries), :meth:`cov`
+    (covariance blocks) and :meth:`constrain` (transforms). Parameters in no
+    transform group are unconstrained.
+
+    Examples
+    --------
+    The local level model:
+
+    >>> y = np.cumsum(np.random.default_rng(3).standard_normal(100))
+    >>> rep = ss.Representation(y, k_states=1)
+    >>> rep["design"] = rep["transition"] = rep["selection"] = [[1.0]]
+    >>> rep.initialize_diffuse()
+    >>> mod = ss.MappedModel(rep, 2, ["sigma2.irregular", "sigma2.level"],
+    ...                      start_params=[0.5, 0.5])
+    >>> _ = mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
+    >>> _ = mod.constrain([0, 1], "positive")
+    >>> res = mod.fit()
+    >>> res.converged
+    True
     """
 
     _GROUPS = {"positive": 1, "interval": 2, "stationary": 3, "invertible": 4}
@@ -548,13 +1061,34 @@ class MappedModel(Model):
 
     @Model.start_params.setter
     def start_params(self, values):
+        """Set the starting values (constrained)."""
         v = self._params(values)
         call("ss_mapped_start", self._h, ptr(v))
 
     def map(self, param, matrix, i, j=0, t=None, coef=1.0):
-        """Parameter `param` sets matrix[i, j, t] = coef * param (0-based;
-        t=None for every period). matrix is one of design, obs_cov,
-        transition, selection, state_cov, state_intercept, obs_intercept."""
+        """Let a parameter set a matrix entry.
+
+        ``matrix[i, j, t] = coef * params[param]``, all indices 0-based.
+
+        Parameters
+        ----------
+        param : int
+            Parameter index.
+        matrix : str
+            ``design``, ``obs_cov``, ``transition``, ``selection``,
+            ``state_cov``, ``state_intercept`` or ``obs_intercept``.
+        i, j : int
+            Row and column; `j` is ignored for the intercepts.
+        t : int, optional
+            Period; ``None`` sets every period of a time-varying matrix.
+        coef : float, optional
+            Multiplier.
+
+        Returns
+        -------
+        MappedModel
+            This model, to chain calls.
+        """
         if matrix not in _ARR or matrix == "endog":
             raise KeyError(matrix)
         call("ss_mapped_entry", self._h, int(param) + 1, _ARR[matrix], int(i) + 1, int(j) + 1,
@@ -562,17 +1096,59 @@ class MappedModel(Model):
         return self
 
     def cov(self, first_param, matrix, offset, dim):
-        """Parameters first_param.. are the lower triangle (by columns) of the
-        dim x dim covariance block of obs_cov or state_cov at offset
-        (0-based); estimated through its Cholesky factor."""
+        """Let parameters set a covariance block.
+
+        Parameters ``first_param, ..., first_param + dim (dim + 1) / 2 - 1``
+        are the lower triangle, by columns, of the block. They are estimated
+        through a Cholesky factor with log diagonal, which keeps the block
+        positive definite.
+
+        Parameters
+        ----------
+        first_param : int
+            First parameter index.
+        matrix : {"obs_cov", "state_cov"}
+            The matrix.
+        offset : int
+            First row and column of the block (0-based).
+        dim : int
+            Size of the block.
+
+        Returns
+        -------
+        MappedModel
+            This model, to chain calls.
+        """
         call("ss_mapped_block", self._h, _ARR[matrix], int(offset) + 1, int(dim),
              int(first_param) + 1)
         return self
 
     def constrain(self, params, kind, bounds=(0.0, 0.0)):
-        """Transform for consecutive parameters: 'positive' (variances,
-        exp(2x)), 'interval' (within bounds), 'stationary' (AR
-        coefficients), 'invertible' (MA coefficients)."""
+        """Set the transform of consecutive parameters.
+
+        Parameters
+        ----------
+        params : int or sequence of int
+            Consecutive parameter indices.
+        kind : {"positive", "interval", "stationary", "invertible"}
+            ``positive``: :math:`\\exp(2x)`, for variances (DK §7.3.2).
+            ``interval``: :math:`m + h x / \\sqrt{1 + x^2}` within `bounds`.
+            ``stationary``: AR coefficients of a stationary polynomial
+            (Monahan 1984). ``invertible``: MA coefficients of an invertible
+            polynomial.
+        bounds : tuple of float, optional
+            (lower, upper) for ``interval``.
+
+        Returns
+        -------
+        MappedModel
+            This model, to chain calls.
+
+        Raises
+        ------
+        ValueError
+            If the parameters are not consecutive.
+        """
         params = sorted(int(k) for k in np.atleast_1d(params))
         if params != list(range(params[0], params[-1] + 1)):
             raise ValueError("constrain needs consecutive parameters")
@@ -583,20 +1159,61 @@ class MappedModel(Model):
 
 
 class MLEModel(Model):
-    """A model written in Python, as with statsmodels' MLEModel: set the
-    fixed matrices and the initialization in __init__ (``self["design"] =
-    ...``, ``self.ssm.initialize_diffuse()``), and override
+    """A model whose system matrices are set by Python code.
 
-    * ``update(params)``: set the matrices that depend on the constrained
-      params, with ``self[name] = value``;
-    * ``start_params`` (property);
-    * optionally ``transform_params``/``untransform_params`` (unconstrained
-      <-> constrained) and ``param_names``.
+    Subclass it as statsmodels' ``MLEModel``: set the fixed matrices and the
+    initialization in ``__init__``, and override
 
-    The library calls ``update`` for every likelihood evaluation (and the
-    analytic score calls it 2k times per gradient for the matrix
-    derivatives), so Python runs inside the optimization; for speed, prefer
-    MappedModel or the built-in models. Cannot be used with fit_many.
+    * ``update(params)``, which sets the matrices that depend on the
+      constrained parameters with ``self[name] = value``;
+    * ``start_params``, a property;
+    * optionally ``transform_params`` and ``untransform_params`` (the
+      default is no transform) and ``param_names``.
+
+    Parameters
+    ----------
+    endog : array_like, shape (n,) or (n, p)
+        Observations, time first; NaN marks missing values.
+    k_states : int
+        Number of states m.
+    k_params : int
+        Number of parameters.
+    k_posdef : int, optional
+        Number of state disturbances r; default `k_states`.
+
+    See Also
+    --------
+    MappedModel : Declared models, without Python in the loop.
+
+    Notes
+    -----
+    The library calls ``update`` at every likelihood evaluation, and the
+    analytic score calls it 2k more times per gradient for its matrix
+    derivatives. Python therefore runs inside the optimization; declared
+    and built-in models are faster, and only they work with
+    :func:`fit_many`. An exception in ``update`` is raised again when the
+    library returns, and the model stays usable.
+
+    Examples
+    --------
+    >>> class LocalLevel(ss.MLEModel):
+    ...     def __init__(self, y):
+    ...         super().__init__(y, k_states=1, k_params=2)
+    ...         self["design"] = self["transition"] = self["selection"] = [[1.0]]
+    ...         self.ssm.initialize_diffuse()
+    ...     @property
+    ...     def start_params(self):
+    ...         return np.array([1.0, 1.0])
+    ...     def transform_params(self, x):
+    ...         return np.exp(2 * np.asarray(x))
+    ...     def untransform_params(self, p):
+    ...         return 0.5 * np.log(p)
+    ...     def update(self, params):
+    ...         self["obs_cov"] = [[params[0]]]
+    ...         self["state_cov"] = [[params[1]]]
+    >>> y = np.cumsum(np.random.default_rng(4).standard_normal(100))
+    >>> LocalLevel(y).fit().converged
+    True
     """
 
     _python_callbacks = True
@@ -621,22 +1238,47 @@ class MLEModel(Model):
 
     @property
     def ssm(self):
+        """The model's representation, which ``update`` fills."""
         return self._ssm
 
     def __setitem__(self, name, value):
+        """Set a system matrix of the model's representation."""
         self._ssm[name] = value
 
     def __getitem__(self, name):
+        """Copy of a system matrix of the model's representation."""
         return self._ssm[name]
 
     def update(self, params):
+        """Set the system matrices from the parameters; override this.
+
+        Parameters
+        ----------
+        params : ndarray, shape (k,)
+            Constrained parameters.
+        """
         raise NotImplementedError("MLEModel subclasses must implement update(params)")
 
     @property
     def param_names(self):
+        """Parameter names; override to name them."""
         return [f"param{i}" for i in range(self.k_params)]
 
     def fit(self, start_params=None, **kwargs):
+        """Estimate the parameters by maximum likelihood.
+
+        Parameters
+        ----------
+        start_params : array_like, optional
+            Constrained starting values; default :attr:`start_params`.
+        **kwargs
+            As for :meth:`Model.fit`.
+
+        Returns
+        -------
+        FitResults
+            Estimates and fit statistics.
+        """
         if start_params is None:
             start_params = self.start_params
         return super().fit(start_params=start_params, **kwargs)
@@ -693,11 +1335,54 @@ def _component_names(specs):
 
 def fit_many(models, maxiter=500, m=10, factr=1e7, pgtol=1e-5, compute_cov=True,
              gradient="auto"):
-    """Fit independent models in parallel (OpenMP threads in the library;
-    the GIL is released). Returns a list of FitResults, with None where a fit
-    failed. For large models set OPENBLAS_NUM_THREADS=1 to avoid nested
-    threading in BLAS. Models defined by Python callbacks cannot be fitted
-    this way; use Model.fit."""
+    """Fit independent models in parallel.
+
+    The library fits the models on OpenMP threads, with the GIL released.
+
+    Parameters
+    ----------
+    models : sequence of StructuralModel or MappedModel
+        The models; each is left at its estimates.
+    maxiter : int, optional
+        Maximum number of iterations.
+    m : int, optional
+        Number of L-BFGS corrections.
+    factr : float, optional
+        Relative reduction tolerance, in units of the machine epsilon.
+    pgtol : float, optional
+        Projected gradient tolerance.
+    compute_cov : bool, optional
+        Compute standard errors.
+    gradient : {"auto", "analytic", "numerical"}, optional
+        As for :meth:`Model.fit`.
+
+    Returns
+    -------
+    list of FitResults or None
+        One result per model; None where the likelihood could not be
+        evaluated.
+
+    Raises
+    ------
+    TypeError
+        If a model is an :class:`MLEModel`: Python callbacks cannot run on
+        the library's threads.
+
+    Notes
+    -----
+    The library must be built with OpenMP (the default with CMake). For
+    large models set ``OPENBLAS_NUM_THREADS=1`` to avoid nested threading
+    in BLAS.
+
+    Examples
+    --------
+    >>> rng = np.random.default_rng(5)
+    >>> ys = [np.cumsum(rng.standard_normal(80)) for _ in range(4)]
+    >>> results = ss.fit_many([ss.StructuralModel(y, [ss.Irregular(), ss.Level()])
+    ...                        for y in ys])
+    >>> [r.converged for r in results]
+    [True, True, True, True]
+    """
     models = list(models)
     for mod in models:
         if not isinstance(mod, Model) or getattr(mod, "_python_callbacks", False):
