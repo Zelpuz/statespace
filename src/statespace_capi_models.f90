@@ -46,7 +46,7 @@ module statespace_capi_models
   public :: ss_model_rep_at, ss_model_set_concentrate, ss_model_scale
   public :: ss_model_fit, ss_fit_many, ss_fit_free, ss_fit_scalars, ss_fit_get, ss_fit_message
   public :: ss_mapped_new, ss_mapped_entry, ss_mapped_block, ss_mapped_group, ss_mapped_start
-  public :: ss_model_set_names, ss_callback_new, ss_model_failures
+  public :: ss_model_set_names, ss_callback_new, ss_model_failures, ss_model_components
 
 contains
 
@@ -506,6 +506,40 @@ contains
   end function ss_model_failures
 
   ! ------------------------------------------------------------- models
+
+  !> For a structural model, the state block of each component: first
+  !> (0-based offset) and size, and whether it acts on the observations
+  !> (1) or on the signals (0). ncomp receives the number of components; the
+  !> arrays need room for maxcomp entries. Other models give ncomp = 0.
+  integer(c_int) function ss_model_components(mhandle, maxcomp, ncomp, first, size_, at_obs) &
+    bind(C, name="ss_model_components") result(info)
+    type(c_ptr), value :: mhandle
+    integer(c_int), value :: maxcomp
+    integer(c_int), intent(out) :: ncomp
+    integer(c_int), intent(out) :: first(maxcomp), size_(maxcomp), at_obs(maxcomp)
+    type(model_box), pointer :: mb
+    integer :: i
+
+    ncomp = 0
+    info = SS_ERR_DIM
+    mb => get_model(mhandle)
+    if (.not. associated(mb)) return
+    info = SS_OK
+    select type (m => mb%model)
+    type is (structural_model_t)
+      ncomp = size(m%comps)
+      if (ncomp > maxcomp) then
+        info = SS_ERR_DIM
+        return
+      end if
+      do i = 1, ncomp
+        first(i) = m%s0(i)
+        size_(i) = m%comps(i)%c%m
+        at_obs(i) = merge(1, 0, m%comps(i)%c%observation_level())
+      end do
+    end select
+  end function ss_model_components
+
 
   function get_model(handle) result(mb)
     type(c_ptr), intent(in) :: handle

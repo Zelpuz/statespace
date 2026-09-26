@@ -43,16 +43,16 @@ module statespace_capi
                                        SS_S_EPSHAT = 5, SS_S_EPSVAR = 6, SS_S_ETAHAT = 7, &
                                        SS_S_ETAVAR = 8
 
-  type :: filter_box
+  type, public :: filter_box
     type(filter_result_t) :: res
   end type filter_box
 
-  type :: smoother_box
+  type, public :: smoother_box
     type(smoother_result_t) :: res
   end type smoother_box
 
   public :: ss_version, ss_rep_new, ss_rep_free, ss_rep_set, ss_rep_set_int, ss_rep_set_real
-  public :: get_rep, ss_rep_info, ss_rep_get
+  public :: get_rep, get_filter, get_smoother, copy_out, ss_rep_info, ss_rep_get
   public :: ss_rep_init_known, ss_rep_init_diffuse, ss_rep_init_approx_diffuse
   public :: ss_rep_init_stationary, ss_rep_init_general, ss_rep_init_block
   public :: ss_loglike, ss_loglike_concentrated
@@ -157,6 +157,22 @@ contains
     end select
     info = SS_OK
   end function ss_rep_set
+
+  function get_filter(handle) result(f)
+    type(c_ptr), intent(in) :: handle
+    type(filter_box), pointer :: f
+
+    f => null()
+    if (c_associated(handle)) call c_f_pointer(handle, f)
+  end function get_filter
+
+  function get_smoother(handle) result(s)
+    type(c_ptr), intent(in) :: handle
+    type(smoother_box), pointer :: s
+
+    s => null()
+    if (c_associated(handle)) call c_f_pointer(handle, s)
+  end function get_smoother
 
   !> Dimensions (p, m, r, n) and the time dimension nts(i) of each array
   !> SS_ARR_i (i = 1..8; n for y).

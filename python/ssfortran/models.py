@@ -8,8 +8,10 @@ Fortran; `fit_many` fits many models in parallel.
 """
 
 import ctypes
+import math
 import weakref
 from dataclasses import dataclass, field
+from statistics import NormalDist
 
 import numpy as np
 
@@ -113,6 +115,23 @@ class ContinuousTrend:
 # ------------------------------------------------------------------ results
 
 @dataclass
+class ForecastResults:
+    """Out-of-sample forecasts (DK 4.11): predicted_mean (steps,) for one
+    series or (steps, p), and var_pred_mean (steps, p, p)."""
+    predicted_mean: np.ndarray
+    var_pred_mean: np.ndarray
+
+    @property
+    def se_mean(self):
+        se = np.sqrt(np.diagonal(self.var_pred_mean, axis1=1, axis2=2))
+        return se if se.shape[1] > 1 else se[:, 0]
+
+    def conf_int(self, alpha=0.05):
+        """(lower, upper) of the 1 - alpha intervals, series by series."""
+        z = NormalDist().inv_cdf(1 - alpha / 2)
+        return self.predicted_mean - z * self.se_mean, self.predicted_mean + z * self.se_mean
+
+@dataclass
 class FitResults:
     """Maximum likelihood estimates (DK 7.3)."""
     model: "Model" = field(repr=False)
@@ -137,14 +156,114 @@ class FitResults:
     def filter(self):
         return self.model.filter(self.params)
 
-    def summary(self):
-        w = max(len(n) for n in self.param_names)
-        lines = [f"log likelihood {self.llf:.4f}   AIC {self.aic:.4f}   BIC {self.bic:.4f}",
-                 f"{'':{w}}  {'estimate':>14}  {'std err':>12}"]
+    def estimation_bias(self, ndraw=1000, antithetic=True, seed=None, variance=False):
+        """Bias of the smoothed state from estimating the parameters (DK
+        7.3.7, eq. 7.20): draws of the unconstrained parameters from their
+        estimated distribution. Returns bias_alpha (m, n), and bias_V
+        (m, m, n) with variance=True. Needs cov_params."""
+        if not np.all(np.isfinite(self.cov_params)):
+            raise ValueError("estimation_bias needs cov_params (fit with compute_cov=True)")
+        m, n = self.model.k_states, self.model.nobs
+        ba = np.empty((m, n), order="F")
+        bV = np.empty((m, m, n), order="F") if variance else None
+        p = farray(self.params, (self.model.k_params,))
+        c = farray(self.cov_params)
+        failed = ctypes.c_int()
+        self.model._call("ss_estimation_bias", self.model._h, ptr(p), ptr(c), int(ndraw),
+                         int(bool(antithetic)), 0 if seed is None else int(seed), ptr(ba),
+                         None if bV is None else ptr(bV), ctypes.byref(failed))
+        self.model.loglike(self.params)          # leave the model at the estimates
+        return (ba, bV) if variance else ba
+
+    # -- per-period output ------------------------------------------------
+
+    @staticmethod
+    def _series(a):
+        """(p, n) -> (n,) for one series, else (n, p)."""
+        a = np.asarray(a).T
+        return a[:, 0] if a.shape[1] == 1 else a
+
+    @property
+    def fittedvalues(self):
+        """One-step-ahead predictions of y."""
+        return self._series(self.filter().forecasts)
+
+    @property
+    def resid(self):
+        """One-step-ahead forecast errors v_t."""
+        return self._series(self.filter().forecasts_error)
+
+    @property
+    def standardized_residuals(self):
+        """Standardized one-step forecast errors (DK 7.5); NaN in the diffuse
+        period and where missing."""
+        return self._series(self.filter().standardized_forecasts_error)
+
+    def components(self, variance=False):
+        """Smoothed components of a StructuralModel at the estimates."""
+        return self.model.components(self.params, variance=variance)
+
+    def get_forecast(self, steps):
+        """Forecasts `steps` periods past the sample (time-invariant models)."""
+        rep = self.model.representation(self.params)
+        mean, cov = rep.forecast(int(steps))
+        return ForecastResults(predicted_mean=mean.T if mean.shape[0] > 1 else mean[0],
+                               var_pred_mean=np.moveaxis(cov, 2, 0))
+
+    def forecast(self, steps):
+        return self.get_forecast(steps).predicted_mean
+
+    # -- summaries ---------------------------------------------------------
+
+    def diagnostics(self, lags=None):
+        """Ljung-Box Q, Jarque-Bera and heteroskedasticity H tests on the
+        standardized residuals of the first series after the diffuse period
+        (DK 2.12, 7.5), as a dict."""
+        from . import diagnostics as dg
+        f = self.filter()
+        e = f.standardized_forecasts_error[0, f.diagnostic_start:]
+        e = e[~np.isnan(e)]
+        lags = lags or max(1, min(10, e.size // 5))
+        q, qp = dg.ljung_box(e, lags)
+        jb, jbp, skew, kurt = dg.jarque_bera(e)
+        h, hp = dg.breakvar(e)
+        return {"ljung_box": (lags, q[-1], qp[-1]), "jarque_bera": (jb, jbp),
+                "skew": skew, "kurtosis": kurt, "heteroskedasticity": (h, hp)}
+
+    def summary(self, alpha=0.05):
+        """Estimates with standard errors, z statistics, p-values and 1 - alpha
+        confidence intervals, fit statistics and residual diagnostics."""
+        z = NormalDist().inv_cdf(1 - alpha / 2)
+        f = self.filter()
+        w = max(12, max(len(n) for n in self.param_names))
+        lo_label, hi_label = f"[{alpha / 2:.3f}", f"{1 - alpha / 2:.3f}]"
+        rule = "=" * (w + 72)
+        lines = [rule,
+                 f"{'Model:':<16}{type(self.model).__name__:<24}"
+                 f"{'Log likelihood:':<18}{self.llf:>14.4f}",
+                 f"{'Observations:':<16}{self.model.nobs:<24}{'AIC:':<18}{self.aic:>14.4f}",
+                 f"{'Diffuse periods:':<16}{f.nobs_diffuse:<24}{'BIC:':<18}{self.bic:>14.4f}"]
+        if self.model.concentrate_scale:
+            lines.append(f"{'Scale:':<16}{self.scale:<24.6g}")
+        lines += [rule, f"{'':{w}}  {'coef':>12} {'std err':>11} {'z':>8} {'P>|z|':>7} "
+                        f"{lo_label:>12} {hi_label:>12}", "-" * (w + 72)]
         for n, p, s in zip(self.param_names, self.params, self.bse):
-            lines.append(f"{n:{w}}  {p:14.6g}  {s:12.4g}")
-        lines.append(self.message)
+            if np.isfinite(s) and s > 0:
+                zs = p / s
+                pv = math.erfc(abs(zs) / math.sqrt(2))
+                lines.append(f"{n:{w}}  {p:12.6g} {s:11.4g} {zs:8.3f} {pv:7.3f} "
+                             f"{p - z * s:12.6g} {p + z * s:12.6g}")
+            else:
+                lines.append(f"{n:{w}}  {p:12.6g} {'':11} {'':8} {'':7} {'':12} {'':12}")
+        d = self.diagnostics()
+        lb = d["ljung_box"]
+        lines += [rule,
+                  f"Ljung-Box Q({lb[0]}): {lb[1]:.3f} (p = {lb[2]:.3f})   "
+                  f"Jarque-Bera: {d['jarque_bera'][0]:.3f} (p = {d['jarque_bera'][1]:.3f})   "
+                  f"H: {d['heteroskedasticity'][0]:.3f} (p = {d['heteroskedasticity'][1]:.3f})",
+                  f"Optimizer: {self.message}", rule]
         return "\n".join(lines)
+
 
 
 # -------------------------------------------------------------------- models
@@ -242,6 +361,43 @@ class Model:
     def filter(self, params) -> FilterResults:
         return self.representation(params).filter()
 
+    def components(self, params, variance=False):
+        """The smoothed contribution of each component of a StructuralModel
+        to the observations, Z_block alphahat_block (and for the irregular,
+        the smoothed eps), as {name: (n,) or (n, p)}.
+        With variance=True, also {name: variances}."""
+        maxc = 64
+        first, size, at = (np.zeros(maxc, dtype=np.int32) for _ in range(3))
+        nc = ctypes.c_int()
+        self._call("ss_model_components", self._h, maxc, ctypes.byref(nc), ptr(first), ptr(size),
+                   ptr(at))
+        if nc.value == 0:
+            raise TypeError("components are defined for StructuralModel")
+        rep = self.representation(params)
+        sm = rep.smooth()
+        Z = rep["design"]
+        n = self.nobs
+        if Z.ndim == 2:
+            Z = np.repeat(Z[:, :, None], n, axis=2)
+        names = _component_names(self.components_spec if hasattr(self, "components_spec")
+                                 else [None] * nc.value)
+        out, var = {}, {}
+        for i in range(nc.value):
+            b = slice(first[i], first[i] + size[i])
+            if size[i] == 0:
+                sig = sm.smoothed_measurement_disturbance
+                v = np.diagonal(sm.smoothed_measurement_disturbance_cov, axis1=0, axis2=1).T
+            else:
+                Zb = Z[:, b, :]
+                sig = np.einsum("pmt,mt->pt", Zb, sm.smoothed_state[b])
+                v = np.einsum("pmt,mkt,pkt->pt", Zb, sm.smoothed_state_cov[b, b], Zb)
+            sig, v = sig.T, v.T
+            if sig.shape[1] == 1:
+                sig, v = sig[:, 0], v[:, 0]
+            out[names[i]] = sig
+            var[names[i]] = v
+        return (out, var) if variance else out
+
     def smooth(self, params) -> SmootherResults:
         return self.representation(params).smooth()
 
@@ -305,7 +461,7 @@ class StructuralModel(Model):
                      ctypes.byref(mh))
         finally:
             call("ss_struct_free", b)
-        self.components = list(components)
+        self.components_spec = list(components)
         self._attach(mh)
 
     @staticmethod
@@ -517,6 +673,20 @@ class MLEModel(Model):
             np.ctypeslib.as_array(out, (k,))[:] = self.untransform_params(
                 np.ctypeslib.as_array(x, (k,)).copy())
         return self._run(f)
+
+
+_KIND = {"Irregular": "irregular", "Level": "level", "Trend": "trend", "Seasonal": "seasonal",
+         "Cycle": "cycle", "Regression": "regression", "ARIMA": "arima",
+         "ContinuousLevel": "level", "ContinuousTrend": "trend"}
+
+
+def _component_names(specs):
+    names, seen = [], {}
+    for c in specs:
+        base = _KIND.get(type(c).__name__, "component")
+        seen[base] = seen.get(base, 0) + 1
+        names.append(base if seen[base] == 1 else f"{base}_{seen[base]}")
+    return names
 
 
 # ------------------------------------------------------------------- fitting

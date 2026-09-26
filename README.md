@@ -73,6 +73,17 @@ rep.initialize_diffuse()
 print(rep.loglike())
 ```
 
+Fitting results have `summary()` (estimates with z-tests and intervals, fit
+statistics, residual tests), `fittedvalues`, `resid`, `get_forecast(steps)` with
+`conf_int()`, `components()` and `estimation_bias()`. A `Representation` also offers:
+- the other smoothers of DK ch. 4: fast, classical, two-filter, Whittle, fixed-point,
+  fixed-lag and updating
+- smoothed covariances between periods, and filtering and smoothing weights
+- the square-root and augmented filters (with the marginal likelihood)
+- EM, collapsing, and linear state restrictions
+- auxiliary residuals, de Jong–Penzer statistics, least squares residuals and R²_D
+- the mean-correction and de Jong–Shephard simulation smoothers
+
 A model with parameters can be defined in three ways:
 
 | | How | Speed |

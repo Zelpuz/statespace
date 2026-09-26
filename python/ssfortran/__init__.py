@@ -25,6 +25,7 @@ from .models import (
     fit_many,
 )
 from .representation import (
+    AugmentedResults,
     DIFFUSE_MULTIVARIATE,
     DIFFUSE_UNIVARIATE,
     FILTER_CONVENTIONAL,
@@ -45,7 +46,7 @@ __all__ = [
     "diagnostics", "Model", "StructuralModel", "MappedModel", "MLEModel", "FitResults", "fit_many",
     "Irregular", "Level", "Trend", "Seasonal", "Cycle", "Regression", "ARIMA",
     "ContinuousLevel", "ContinuousTrend",
-    "Representation", "FilterResults", "SmootherResults", "StateSpaceError",
+    "Representation", "AugmentedResults", "FilterResults", "SmootherResults", "StateSpaceError",
     "INIT_KNOWN", "INIT_APPROX_DIFFUSE", "INIT_STATIONARY", "INIT_DIFFUSE", "INIT_GENERAL",
     "FILTER_CONVENTIONAL", "FILTER_UNIVARIATE", "DIFFUSE_UNIVARIATE", "DIFFUSE_MULTIVARIATE",
 ]

@@ -79,6 +79,22 @@ class SmootherResults:
     smoothed_state_disturbance_cov: np.ndarray
 
 
+@dataclass
+class AugmentedResults:
+    """Augmented Kalman filter and smoother (DK 5.7): the delta = 0 filter,
+    the GLS estimate of the diffuse elements delta and its variance, and
+    the diffuse (7.2.2), fixed-but-unknown (7.2.4) and marginal (7.2.6)
+    log likelihoods."""
+    filter: FilterResults
+    delta: np.ndarray
+    delta_cov: np.ndarray
+    llf: float
+    llf_fixed: float
+    llf_marginal: float
+    smoothed_state: np.ndarray
+    smoothed_state_cov: np.ndarray
+
+
 class Representation:
     """A linear Gaussian state space model held by the Fortran library.
 
@@ -236,22 +252,27 @@ class Representation:
         call("ss_loglike_concentrated", self._h, ctypes.byref(llf), ctypes.byref(scale))
         return llf.value, scale.value
 
-    def filter(self):
-        """Run the Kalman filter and return FilterResults."""
+    def filter(self, method="conventional"):
+        """Run the Kalman filter and return FilterResults; method="sqrt"
+        uses the square root filter (DK 6.3)."""
         fh = ctypes.c_void_p()
-        call("ss_filter", self._h, ctypes.byref(fh))
+        call("ss_sqrt_filter" if method == "sqrt" else "ss_filter", self._h, ctypes.byref(fh))
         try:
             return self._filter_results(fh)
         finally:
             _free("ss_filter_free", fh)
 
-    def smooth(self):
-        """Run the filter and the state and disturbance smoother."""
+    def smooth(self, method="conventional"):
+        """Run the filter and the state and disturbance smoother;
+        method="sqrt" uses the square root filter and smoother (DK 6.3)."""
         fh, sh = ctypes.c_void_p(), ctypes.c_void_p()
-        call("ss_filter", self._h, ctypes.byref(fh))
+        call("ss_sqrt_filter" if method == "sqrt" else "ss_filter", self._h, ctypes.byref(fh))
         try:
             fres = self._filter_results(fh)
-            call("ss_smooth", self._h, fh, ctypes.byref(sh))
+            if method == "sqrt":
+                call("ss_sqrt_smoother", self._h, fh, ctypes.byref(sh))
+            else:
+                call("ss_smooth", self._h, fh, ctypes.byref(sh))
             try:
                 p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
                 get = lambda code, shape: _get("ss_smoother_get", sh, code, shape)
@@ -352,6 +373,222 @@ class Representation:
         call("ss_simulation_smoother", self._h, ptr(ui), ptr(ue), ptr(un), ptr(state),
              ptr(eps), ptr(eta))
         return state, eps, eta
+
+    # -- DK ch. 4 extras ------------------------------------------------------
+
+    def _with_filter(self, fn, smoother=False):
+        fh, sh = ctypes.c_void_p(), ctypes.c_void_p()
+        call("ss_filter", self._h, ctypes.byref(fh))
+        try:
+            if smoother:
+                call("ss_smooth", self._h, fh, ctypes.byref(sh))
+                try:
+                    return fn(fh, sh)
+                finally:
+                    _free("ss_smoother_free", sh)
+            return fn(fh)
+        finally:
+            _free("ss_filter_free", fh)
+
+    def _mn(self):
+        return (self.k_states, self.nobs), (self.k_states, self.k_states, self.nobs)
+
+    def fast_smoother(self):
+        """Smoothed state by the fast state smoother (DK 4.6.2), (m, n)."""
+        a = np.empty(self._mn()[0], order="F")
+        self._with_filter(lambda fh: call("ss_fast_smoother", self._h, fh, ptr(a)))
+        return a
+
+    def classical_smoother(self):
+        """Classical (Rauch-Tung-Striebel) smoother (DK 4.6.1): (alphahat, V)."""
+        a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
+        self._with_filter(lambda fh: call("ss_classical_smoother", self._h, fh, ptr(a), ptr(V)))
+        return a, V
+
+    def two_filter_smoother(self):
+        """Two-filter formula for smoothing (DK 4.6.4): (alphahat, V)."""
+        a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
+        self._with_filter(lambda fh: call("ss_two_filter_smoother", self._h, fh, ptr(a), ptr(V)))
+        return a, V
+
+    def whittle_smoother(self):
+        """Smoothed state from the Whittle relation (DK 4.6.3), (m, n). The
+        recursion runs backwards through T^-1 and can be numerically unstable
+        (as DK note); prefer `smooth` in practice."""
+        a = np.empty(self._mn()[0], order="F")
+        self._with_filter(lambda fh: call("ss_whittle_smoother", self._h, fh, ptr(a)))
+        return a
+
+    def fixed_point_smoother(self, t):
+        """Estimates of alpha_t (0-based t) given y up to k = t..n-1 (DK 4.4.6):
+        (means (m, n-t), variances (m, m, n-t))."""
+        k = self.nobs - t
+        a = np.empty((self.k_states, k), order="F")
+        V = np.empty((self.k_states, self.k_states, k), order="F")
+        self._with_filter(lambda fh: call("ss_fixed_point_smoother", self._h, fh, int(t) + 1,
+                                          ptr(a), ptr(V)))
+        return a, V
+
+    def fixed_lag_smoother(self, lag):
+        """alpha_s given y up to s + lag (DK 4.4.6): (alphahat, V), NaN in the
+        last `lag` periods."""
+        a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
+        self._with_filter(lambda fh: call("ss_fixed_lag_smoother", self._h, fh, int(lag),
+                                          ptr(a), ptr(V)))
+        return a, V
+
+    def update_smoothed(self, alphahat, V, nobs_old):
+        """Update smoothed estimates for the first `nobs_old` periods (given
+        those observations only) to all n observations (DK 4.4.5). alphahat
+        (m, >= nobs_old) and V (m, m, >= nobs_old); returns full (m, n) and
+        (m, m, n) arrays."""
+        a = np.full(self._mn()[0], np.nan, order="F")
+        W = np.full(self._mn()[1], np.nan, order="F")
+        a[:, :nobs_old] = np.asarray(alphahat)[:, :nobs_old]
+        W[:, :, :nobs_old] = np.asarray(V)[:, :, :nobs_old]
+        self._with_filter(lambda fh: call("ss_update_smoothed", self._h, fh, int(nobs_old),
+                                          ptr(a), ptr(W)))
+        return a, W
+
+    def smoothed_state_autocov(self):
+        """Cov(alpha_t+1, alpha_t | Y_n), (m, m, n-1) (DK 4.7)."""
+        out = np.empty((self.k_states, self.k_states, self.nobs - 1), order="F")
+        self._with_filter(lambda fh, sh: call("ss_smoothed_state_autocov", self._h, fh, sh,
+                                              ptr(out)), smoother=True)
+        return out
+
+    def smoothed_state_cov_between(self, t, j):
+        """Cov(alpha_t, alpha_j | Y_n) (0-based periods; DK 4.7)."""
+        out = np.empty((self.k_states, self.k_states), order="F")
+        self._with_filter(lambda fh, sh: call("ss_smoothed_state_cov_between", self._h, fh, sh,
+                                              int(t) + 1, int(j) + 1, ptr(out)), smoother=True)
+        return out
+
+    def filtered_state_weights(self):
+        """Weights of past observations in a_t and a_t|t (DK 4.8.2): (Wa, Watt),
+        each (m, p, n, n) with [:, :, t, j] the weight of y_j."""
+        m, p, n = self.k_states, self.k_endog, self.nobs
+        Wa, Watt = np.empty((m, p, n, n), order="F"), np.empty((m, p, n, n), order="F")
+        self._with_filter(lambda fh: call("ss_filtered_state_weights", self._h, fh, ptr(Wa),
+                                          ptr(Watt)))
+        return Wa, Watt
+
+    def smoothed_state_weights(self):
+        """Weights of the smoothed state (DK 4.8.3): alphahat_t = sum_j
+        W[:, :, t, j] (y_j - d_j) + sum_j C[:, :, t, j] c_j + A[:, :, t] a1."""
+        m, p, n = self.k_states, self.k_endog, self.nobs
+        W = np.empty((m, p, n, n), order="F")
+        C = np.empty((m, m, n, n), order="F")
+        A = np.empty((m, m, n), order="F")
+        call("ss_smoothed_state_weights", self._h, ptr(W), ptr(C), ptr(A))
+        return W, C, A
+
+    def innovation_transition(self, t):
+        """L_t (0-based t), the transition of the state prediction error (DK 4.3)."""
+        out = np.empty((self.k_states, self.k_states), order="F")
+        self._with_filter(lambda fh: call("ss_innovation_transition", self._h, fh, int(t) + 1,
+                                          ptr(out)))
+        return out
+
+    def augmented(self):
+        """Augmented Kalman filter and smoother (DK 5.7)."""
+        ah = ctypes.c_void_p()
+        call("ss_augmented_filter", self._h, ctypes.byref(ah))
+        try:
+            k = ctypes.c_int()
+            llf, llf_fixed, llf_marg = ctypes.c_double(), ctypes.c_double(), ctypes.c_double()
+            call("ss_augmented_info", ah, ctypes.byref(k), ctypes.byref(llf),
+                 ctypes.byref(llf_fixed), ctypes.byref(llf_marg))
+            delta = np.empty(k.value)
+            delta_cov = np.empty((k.value, k.value), order="F")
+            if k.value > 0:
+                call("ss_augmented_get", ah, 1, ptr(delta))
+                call("ss_augmented_get", ah, 2, ptr(delta_cov))
+            fh = ctypes.c_void_p()
+            call("ss_augmented_filter_result", ah, ctypes.byref(fh))
+            fres = self._filter_results(fh)
+            a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
+            call("ss_augmented_smoother", self._h, ah, ptr(a), ptr(V))
+        finally:
+            _free("ss_augmented_free", ah)
+        return AugmentedResults(filter=fres, delta=delta, delta_cov=delta_cov, llf=llf.value,
+                                llf_fixed=llf_fixed.value, llf_marginal=llf_marg.value,
+                                smoothed_state=a, smoothed_state_cov=V)
+
+    def em(self, maxiter=500, tol=1e-8, diagonal_obs_cov=False, diagonal_state_cov=False):
+        """EM for obs_cov (H) and state_cov (Q) (DK 7.3.4), updating this
+        representation. Returns (llf, niter, llf_path)."""
+        llf, niter = ctypes.c_double(), ctypes.c_int()
+        path = np.empty(int(maxiter))
+        call("ss_em", self._h, int(maxiter), float(tol), int(bool(diagonal_obs_cov)),
+             int(bool(diagonal_state_cov)), ctypes.byref(llf), ctypes.byref(niter), ptr(path))
+        return llf.value, niter.value, path[:niter.value]
+
+    def collapse(self):
+        """The collapsed representation (DK 6.5) and the log likelihood
+        adjustment: loglike() == collapsed.loglike() + adjust.sum()."""
+        h = ctypes.c_void_p()
+        adj = np.empty(self.nobs)
+        call("ss_collapse", self._h, ctypes.byref(h), ptr(adj))
+        return Representation._wrap(h, owner=None), adj
+
+    def add_state_restrictions(self, restriction, value):
+        """A representation with R*_t alpha_t = r*_t imposed (DK 6.6):
+        restriction (q, m) or (q, m, n), value (q, n) with NaN where a
+        restriction is inactive. Use filter_method=FILTER_UNIVARIATE."""
+        Rm = np.asarray(restriction, dtype=np.float64)
+        if Rm.ndim == 2:
+            Rm = Rm[:, :, None]
+        q, nt = Rm.shape[0], Rm.shape[2]
+        Rm = np.asfortranarray(Rm)
+        r = farray(value, (q, self.nobs))
+        h = ctypes.c_void_p()
+        call("ss_add_restrictions", self._h, q, nt, ptr(Rm), ptr(r), ctypes.byref(h))
+        return Representation._wrap(h, owner=None)
+
+    # -- more diagnostics ------------------------------------------------------
+
+    def auxiliary_residuals(self, vector=False):
+        """Standardized smoothed disturbances (DK 7.5): (eps (p, n), eta (r, n));
+        vector=True standardizes each period's vector (Cholesky)."""
+        e = np.empty((self.k_endog, self.nobs), order="F")
+        u = np.empty((self.k_posdef, self.nobs), order="F")
+        self._with_filter(lambda fh, sh: call("ss_auxiliary_residuals", self._h, sh,
+                                              int(bool(vector)), ptr(e), ptr(u)), smoother=True)
+        return e, u
+
+    def de_jong_penzer(self):
+        """de Jong and Penzer (1998) shock statistics (DK 7.5):
+        (state (m, n), observation (p, n))."""
+        r = np.empty((self.k_states, self.nobs), order="F")
+        e = np.empty((self.k_endog, self.nobs), order="F")
+        self._with_filter(lambda fh, sh: call("ss_de_jong_penzer", self._h, fh, sh, ptr(r), ptr(e)),
+                          smoother=True)
+        return r, e
+
+    def least_squares_residuals(self, start, stop):
+        """Least squares residuals (DK 6.2.4) with the regression coefficients
+        in states start..stop-1 (0-based slice), (p, n)."""
+        out = np.empty((self.k_endog, self.nobs), order="F")
+        call("ss_least_squares_residuals", self._h, int(start) + 1, int(stop), ptr(out))
+        return out
+
+    def r2_diffuse(self, series=0):
+        """R^2_D against a random walk with drift (Harvey 1989)."""
+        r2 = ctypes.c_double()
+        self._with_filter(lambda fh: call("ss_r2_diffuse", self._h, fh, int(series) + 1,
+                                          ctypes.byref(r2)))
+        return r2.value
+
+    def djs_simulation_smoother(self, rng=None, variates=None):
+        """de Jong-Shephard simulation smoother (DK 4.9.3): (alpha, eps, eta)."""
+        ui, ue, un = self._variates(rng, variates)
+        p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
+        eps, eta = np.empty((p, n), order="F"), np.empty((r, n), order="F")
+        alpha = np.empty((m, n), order="F")
+        self._with_filter(lambda fh: call("ss_djs_simulation_smoother", self._h, fh, ptr(ue),
+                                          ptr(un), ptr(ui), ptr(eps), ptr(eta), ptr(alpha)))
+        return alpha, eps, eta
 
     def steady_state(self):
         """Steady-state (P, F) of a time-invariant model (DK 4.3.4)."""
