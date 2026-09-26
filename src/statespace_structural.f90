@@ -23,6 +23,7 @@ module statespace_structural
   public :: irregular_t, level_t, trend_t, seasonal_t, cycle_t, regression_t
   public :: continuous_level_t, continuous_trend_t
   public :: step_intervention, pulse_intervention, slope_intervention
+  public :: cov_constrain, cov_unconstrain
 
   integer, parameter, public :: COV_NONE = 0, COV_DIAGONAL = 1, COV_FULL = 2
   integer, parameter, public :: SEASONAL_DUMMY = 1, SEASONAL_TRIG = 2, SEASONAL_HS = 3
