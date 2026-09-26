@@ -171,7 +171,7 @@ future exog.
 | Forecasting for time-varying models | See [Forecasting](#forecasting) |
 | VARMAX, DynamicFactorMQ (mixed frequency), ETS `ExponentialSmoothing`, `RecursiveLS` with CUSUM tests | Our DK 3.5 exponential smoothing is only tested as equivalent to the local level filter. Recursive residuals are the innovations of a regression model |
 | OPG (the default) and robust covariance types | Ours has only the numerical Hessian |
-| Rich results objects: pandas indexes, plots, full summary tables and diagnostics in the results | `ssfortran` returns numpy arrays in dataclasses with statsmodels' field names, plus a plain `summary()` |
+| pandas indexes and plots; prediction objects for time-varying models, news, impulse responses, `append`/`extend` | Out of scope. `ssfortran` returns numpy arrays; it has fitted values, residuals, forecasts with intervals (time-invariant models), component decompositions and a summary with residual tests |
 
 ## Known statsmodels bugs
 
