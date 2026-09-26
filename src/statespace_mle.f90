@@ -39,7 +39,7 @@ module statespace_mle
 
   type :: fit_result_t
     real(dp), allocatable :: params(:)        !< constrained estimates
-    real(dp), allocatable :: cov_params(:, :) !< from the numerical Hessian
+    real(dp), allocatable :: cov_params(:, :) !< delta method from the unconstrained Hessian
     real(dp), allocatable :: bse(:)           !< standard errors
     real(dp) :: llf = 0.0_dp
     real(dp) :: scale = 1.0_dp                !< estimated scale if concentrated out
@@ -70,7 +70,7 @@ contains
     logical :: lsave(4)
     integer :: isave(44)
     real(dp) :: dsave(29), f, nobs, logdet
-    real(dp), allocatable :: x(:), g(:), l(:), u(:), wa(:)
+    real(dp), allocatable :: x(:), g(:), l(:), u(:), wa(:), J(:, :)
     integer, allocatable :: nbd(:), iwa(:)
     integer :: i, k, m, n_eff, k_eff
     logical :: use_analytic
@@ -139,8 +139,16 @@ contains
     res%bic = -2.0_dp * res%llf + k_eff * log(real(n_eff, dp))
 
     if (opts%compute_cov) then
-      res%cov_params = -numerical_hessian(model, res%params, info)
+      ! Hessian in the unconstrained psi (DK 7.3.6), where every step is a
+      ! valid parameter even for a variance near zero, then the delta method:
+      ! cov(theta) = J cov(psi) J', J = d theta / d psi.
+      x = model%untransform_params(res%params)
+      res%cov_params = -numerical_hessian(model, x, info, transformed=.false.)
       if (info == SS_OK) call chol_inv(res%cov_params, logdet, info)
+      if (info == SS_OK) then
+        J = transform_jacobian(model, x)
+        res%cov_params = matmul(J, matmul(res%cov_params, transpose(J)))
+      end if
       if (info /= SS_OK) then
         info = SS_ERR_NOT_PD
         deallocate (res%cov_params)
@@ -199,10 +207,10 @@ contains
     integer, intent(out), optional :: failed
     type(filter_result_t) :: filt
     type(smoother_result_t) :: s0, sp, sm
-    real(dp), allocatable :: C(:, :), u(:), x0(:), xh(:), J(:, :), Jinv(:, :), sumV(:, :, :)
-    real(dp) :: h, logdet
+    real(dp), allocatable :: C(:, :), u(:), x0(:), J(:, :), Jinv(:, :), sumV(:, :, :)
+    real(dp) :: logdet
     logical :: anti
-    integer :: k, jj, nok, nfail, stat, stat2
+    integer :: k, nok, nfail, stat, stat2
 
     anti = .true.
     if (present(antithetic)) anti = antithetic
@@ -214,16 +222,7 @@ contains
 
     ! Omega on the unconstrained scale: J^-1 cov_params J^-T, J = d psi_c / d x.
     x0 = model%untransform_params(fres%params)
-    allocate (J(k, k))
-    xh = x0
-    do jj = 1, k
-      h = epsilon(1.0_dp)**(1.0_dp / 3.0_dp) * max(abs(x0(jj)), 1.0_dp)
-      xh(jj) = x0(jj) + h
-      J(:, jj) = model%transform_params(xh)
-      xh(jj) = x0(jj) - h
-      J(:, jj) = (J(:, jj) - model%transform_params(xh)) / (2.0_dp * h)
-      xh(jj) = x0(jj)
-    end do
+    J = transform_jacobian(model, x0)
     Jinv = matmul(transpose(J), J)
     call chol_inv(Jinv, logdet, info)
     if (info /= SS_OK) return
@@ -280,12 +279,11 @@ contains
     real(dp), intent(in) :: x(:), nobs
     real(dp), intent(out) :: f, g(:)
     integer, intent(out) :: info
-    real(dp), allocatable :: psi(:), score(:), xh(:), J(:, :)
-    real(dp) :: llf, h
-    integer :: i
+    real(dp), allocatable :: psi(:), score(:)
+    real(dp) :: llf
 
     psi = model%transform_params(x)
-    allocate (score(size(psi)), J(size(psi), size(x)))
+    allocate (score(size(psi)))
     call analytic_score(model, psi, score, llf, info)
     if (info == SS_ERR_UNSUPPORTED) return
     if (info /= SS_OK .or. .not. ieee_is_finite(llf)) then
@@ -294,17 +292,8 @@ contains
       info = SS_OK
       return
     end if
-    xh = x
-    do i = 1, size(x)
-      h = epsilon(1.0_dp)**(1.0_dp / 3.0_dp) * max(abs(x(i)), 1.0_dp)
-      xh(i) = x(i) + h
-      J(:, i) = model%transform_params(xh)
-      xh(i) = x(i) - h
-      J(:, i) = (J(:, i) - model%transform_params(xh)) / (2.0_dp * h)
-      xh(i) = x(i)
-    end do
     f = -llf / nobs
-    g = -matmul(transpose(J), score) / nobs
+    g = -matmul(transpose(transform_jacobian(model, x)), score) / nobs
   end subroutine analytic_gradient
 
   !> Central-difference gradient of `objective`.
@@ -332,21 +321,49 @@ contains
     end do
   end subroutine gradient
 
-  !> Central-difference Hessian of the log likelihood at constrained `params`.
-  !> If any evaluation fails, `info` is set and the result is not valid.
-  function numerical_hessian(model, params, info) result(hess)
+  !> Central-difference Jacobian d theta / d psi of `transform_params` at
+  !> unconstrained x.
+  function transform_jacobian(model, x) result(J)
+    class(ssm_model_t), intent(in) :: model
+    real(dp), intent(in) :: x(:)
+    real(dp), allocatable :: J(:, :)
+    real(dp), allocatable :: xh(:)
+    real(dp) :: h
+    integer :: i
+
+    allocate (J(size(x), size(x)))
+    xh = x
+    do i = 1, size(x)
+      h = epsilon(1.0_dp)**(1.0_dp / 3.0_dp) * max(abs(x(i)), 1.0_dp)
+      xh(i) = x(i) + h
+      J(:, i) = model%transform_params(xh)
+      xh(i) = x(i) - h
+      J(:, i) = (J(:, i) - model%transform_params(xh)) / (2.0_dp * h)
+      xh(i) = x(i)
+    end do
+  end function transform_jacobian
+
+  !> Central-difference Hessian of the log likelihood at `params`, which are
+  !> constrained unless `transformed` is false. If any evaluation fails,
+  !> `info` is set and the result is not valid.
+  function numerical_hessian(model, params, info, transformed) result(hess)
     class(ssm_model_t), intent(inout) :: model
     real(dp), intent(in) :: params(:)
     integer, intent(out) :: info
+    logical, intent(in), optional :: transformed
     real(dp), allocatable :: hess(:, :)
     real(dp), allocatable :: h(:)
     real(dp) :: f0
     integer :: i, j, k
+    logical :: tr
+
+    tr = .true.
+    if (present(transformed)) tr = transformed
 
     k = size(params)
     allocate (hess(k, k))
     h = epsilon(1.0_dp)**0.25_dp * max(abs(params), 1.0_dp)
-    f0 = model%loglike(params, info)
+    f0 = model%loglike(params, info, transformed=tr)
     if (info /= SS_OK) return
 
     do i = 1, k
@@ -372,7 +389,7 @@ contains
 
       p = params
       p(idx) = p(idx) + step
-      llf_at = model%loglike(p, stat)
+      llf_at = model%loglike(p, stat, transformed=tr)
       if (stat /= SS_OK) info = stat
     end function llf_at
   end function numerical_hessian

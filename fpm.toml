@@ -1,6 +1,6 @@
 name = "statespace"
 version = "0.1.0"
-license = "license"
+license = "MIT"
 author = "zelpuz"
 maintainer = "td.edwards@yahoo.com"
 copyright = "Copyright 2026, zelpuz"

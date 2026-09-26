@@ -42,6 +42,7 @@ module statespace_structural
     procedure :: untransform_params => cov_untransform_irr
     procedure :: start_params => irregular_start
     procedure :: observation_level => irregular_observation_level
+    procedure :: param_names => irregular_names
   end type irregular_t
 
   !> Local level (random walk) mu_t+1 = mu_t + xi_t (DK 2, 3.3).
@@ -53,6 +54,7 @@ module statespace_structural
     procedure :: transform_params => cov_transform_level
     procedure :: untransform_params => cov_untransform_level
     procedure :: start_params => level_start
+    procedure :: param_names => level_names
   end type level_t
 
   !> Local linear trend (DK 3.2): mu_t+1 = mu_t + nu_t + xi_t,
@@ -67,6 +69,7 @@ module statespace_structural
     procedure :: transform_params => cov_transform_trend
     procedure :: untransform_params => cov_untransform_trend
     procedure :: start_params => trend_start
+    procedure :: param_names => trend_names
   end type trend_t
 
   !> Seasonal with period s (DK 3.2.2): SEASONAL_DUMMY (3.3),
@@ -81,6 +84,7 @@ module statespace_structural
     procedure :: transform_params => cov_transform_seas
     procedure :: untransform_params => cov_untransform_seas
     procedure :: start_params => seasonal_start
+    procedure :: param_names => seasonal_names
   end type seasonal_t
 
   !> Cycle (DK 3.2.4, 3.13): (c, c*)_t+1 = rho C(lambda) (c, c*)_t + w_t,
@@ -99,6 +103,7 @@ module statespace_structural
     procedure :: untransform_params => cycle_untransform
     procedure :: start_params => cycle_start
     procedure :: init_blocks => cycle_init_blocks
+    procedure :: param_names => cycle_names
   end type cycle_t
 
   !> Continuous-time local level (DK 3.8.1) observed at times t_1 < ... < t_n:
@@ -110,6 +115,7 @@ module statespace_structural
   contains
     procedure :: setup => clevel_setup
     procedure :: fill => clevel_fill
+    procedure :: param_names => clevel_names
   end type continuous_level_t
 
   !> Continuous-time smooth trend (DK 3.8.2, 3.9.2): d nu = sigma dw,
@@ -124,6 +130,7 @@ module statespace_structural
   contains
     procedure :: setup => ctrend_setup
     procedure :: fill => ctrend_fill
+    procedure :: param_names => ctrend_names
   end type continuous_trend_t
 
   !> Regression effects for series `series` (DK 3.2.5, 3.6): Z_t = x_t,
@@ -138,6 +145,7 @@ module statespace_structural
   contains
     procedure :: setup => regression_setup
     procedure :: fill => regression_fill
+    procedure :: param_names => regression_names
   end type regression_t
 
 contains
@@ -179,6 +187,39 @@ contains
       end do
     end select
   end function cov_start
+
+  !> Names of a covariance's parameters: "sigma2.<label>" (with ".i" for
+  !> p > 1), or "cov.<label>.i.j" for the lower triangle, column by column.
+  pure function cov_names(cov, p, label) result(names)
+    integer, intent(in) :: cov, p
+    character(len=*), intent(in) :: label
+    character(len=32), allocatable :: names(:)
+    integer :: i, j, k
+
+    allocate (names(cov_nparams(cov, p)))
+    select case (cov)
+    case (COV_DIAGONAL)
+      do i = 1, p
+        if (p == 1) then
+          names(i) = "sigma2."//label
+        else
+          write (names(i), '("sigma2.", a, ".", i0)') label, i
+        end if
+      end do
+    case (COV_FULL)
+      k = 0
+      do j = 1, p
+        do i = j, p
+          k = k + 1
+          if (p == 1) then
+            names(k) = "sigma2."//label
+          else
+            write (names(k), '("cov.", a, ".", i0, ".", i0)') label, i, j
+          end if
+        end do
+      end do
+    end select
+  end function cov_names
 
   !> Covariance matrix from constrained parameters: variances (diagonal) or
   !> the lower triangle of Sigma column by column (full).
@@ -810,4 +851,71 @@ contains
 
     w = [(merge(1.0_dp + t - tau, 0.0_dp, t >= tau), t=1, n)]
   end function slope_intervention
+  ! ---------------------------------------------------------------- names
+
+  function irregular_names(self) result(names)
+    class(irregular_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = cov_names(self%cov, self%p, "irregular")
+  end function irregular_names
+
+  function level_names(self) result(names)
+    class(level_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = cov_names(self%cov, self%p, "level")
+  end function level_names
+
+  function trend_names(self) result(names)
+    class(trend_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = [cov_names(self%cov_level, self%p, "level"), cov_names(self%cov_slope, self%p, "slope")]
+  end function trend_names
+
+  function seasonal_names(self) result(names)
+    class(seasonal_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = cov_names(self%cov, self%p, "seasonal")
+  end function seasonal_names
+
+  function cycle_names(self) result(names)
+    class(cycle_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = [character(len=32) :: cov_names(self%cov, self%p, "cycle"), "frequency.cycle"]
+    if (self%damped) names = [character(len=32) :: names, "damping.cycle"]
+  end function cycle_names
+
+  function clevel_names(self) result(names)
+    class(continuous_level_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = [character(len=32) :: "sigma2.level"]
+  end function clevel_names
+
+  function ctrend_names(self) result(names)
+    class(continuous_trend_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+
+    names = [character(len=32) :: "sigma2.slope"]
+  end function ctrend_names
+
+  !> "sigma2.beta.j" for each random-walk coefficient j.
+  function regression_names(self) result(names)
+    class(regression_t), intent(in) :: self
+    character(len=32), allocatable :: names(:)
+    integer :: j, k
+
+    allocate (names(self%k))
+    k = 0
+    do j = 1, size(self%random_walk)
+      if (.not. self%random_walk(j)) cycle
+      k = k + 1
+      write (names(k), '("sigma2.beta.", i0)') j
+    end do
+  end function regression_names
+
 end module statespace_structural

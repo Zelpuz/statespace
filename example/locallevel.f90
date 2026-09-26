@@ -7,7 +7,7 @@ program locallevel
     implicit none
     
     integer, parameter :: dp = selected_real_kind(15, 307)
-    character(len=*), parameter :: filename = "nile.csv"
+    character(len=*), parameter :: filename = "data/nile.csv"
     real(dp), allocatable :: datetime(:), y(:), a(:), P(:), v(:), F(:), K(:)
     real(dp), allocatable :: a_given(:), P_given(:)
     real(dp), allocatable :: r(:), N(:), v_up(:), L(:), expected_alpha(:)

@@ -6,7 +6,7 @@ we follow DK. This page lists those choices, the features only one of the two li
 has, and the statsmodels bugs we found while building the test fixtures.
 
 The comparison is against **statsmodels 0.15.0** (the version in `.venv`). Section
-numbers refer to DK.
+numbers refer to DK. Full citations are in [references.md](references.md).
 
 ## Methods in both libraries
 
@@ -76,10 +76,15 @@ The cycle period bounds default to 2 up to the number of observations. statsmode
     recommend.
   - statsmodels defaults to complex-step differentiation. Its analytic score is
     `_score_harvey` (Harvey 1989), which differentiates the filter recursions.
-- **Standard errors.** Ours come from a finite-difference Hessian of the log
-  likelihood (DK 7.3.6). statsmodels defaults to the outer product of gradients
-  (`cov_type="opg"`). Its `cov_type="approx"` is closer to ours: a numerical
-  Hessian, by complex step.
+- **Standard errors.** Ours come from a finite-difference Hessian in the
+  unconstrained parameters ψ (DK 7.3.6), mapped to the constrained parameters by the
+  delta method. Every finite-difference step is then a valid parameter, even for a
+  variance near zero. statsmodels defaults to the outer product of gradients
+  (`cov_type="opg"`). Its `cov_type="approx"` is closer to ours, but differentiates
+  in the constrained parameters, by complex step.
+- **Prediction error variance (DK 7.4).** Ours is the steady-state F̄ (DK 2.11,
+  4.3.4), from `steady_state`. statsmodels has no such function; its conventional
+  filter's steady-state switch is internal to the filter.
 - **AIC/BIC.** We follow statsmodels: k = k_params + k_diffuse (+1 with a concentrated
   scale), and n = nobs − burn. DK (7.4) also divide by n; neither library does.
 
