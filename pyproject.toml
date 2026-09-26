@@ -1,0 +1,28 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ssfortran"
+version = "0.1.0"
+description = "Linear Gaussian state space models (Durbin and Koopman, Part I) with a Fortran core"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+authors = [{ name = "zelpuz" }]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+wheel.packages = ["python/ssfortran"]
+# The library is loaded with ctypes, so the wheel is Python-version
+# independent but platform specific.
+wheel.py-api = "py3"
+sdist.exclude = ["build", ".venv", "ref", "private", "data/seatbelts.csv", "data/wwwusage.csv", "data/mcycle.csv", "test/fixtures/__pycache__"]
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]

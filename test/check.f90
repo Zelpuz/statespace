@@ -10,6 +10,7 @@ program check
   use test_recursions, only: collect_recursions
   use test_structural, only: collect_structural
   use test_arima, only: collect_arima
+  use test_capi, only: collect_capi
   implicit none
   type(testsuite_type), allocatable :: testsuites(:)
   integer :: stat, is
@@ -24,7 +25,8 @@ program check
                new_testsuite("diagnostics", collect_diagnostics), &
                new_testsuite("recursions", collect_recursions), &
                new_testsuite("structural", collect_structural), &
-               new_testsuite("arima", collect_arima) &
+               new_testsuite("arima", collect_arima), &
+               new_testsuite("capi", collect_capi) &
                ]
   do is = 1, size(testsuites)
     write (error_unit, '("# Testing:", 1x, a)') testsuites(is)%name
