@@ -1,0 +1,14 @@
+name = "lbfgsb"
+author = "Jacob Williams"
+maintainer = "Jacob Williams"
+license = "BSD-3"
+description = "lbfgsb optimization library"
+homepage = "https://github.com/jacobwilliams/lbfgsb"
+
+[build]
+auto-executables = false
+auto-examples = false
+auto-tests = false
+
+[library]
+source-dir = "src"

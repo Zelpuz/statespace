@@ -53,16 +53,34 @@ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 ```
 
+## L-BFGS-B (bundled)
+
+`third_party/lbfgsb/` holds the Fortran sources of
+[jacobwilliams/lbfgsb](https://github.com/jacobwilliams/lbfgsb), unmodified: L-BFGS-B
+3.0 by Ciyou Zhu, Richard Byrd, Peihuang Lu, Jorge Nocedal and Jose Luis Morales,
+modernized by Jacob Williams. It is released under the BSD-3-Clause ("New BSD")
+license; the text distributed with it is `third_party/lbfgsb/License.txt`, and
+`third_party/lbfgsb/README.md` records the upstream commit. It is compiled into the
+library and into every wheel.
+
 ## Build dependencies
 
-fpm downloads these at build time; they are not copied into this repository. Their
-licenses apply to compiled binaries that include them.
+These are not copied into this repository.
 
 | Package | Use | License |
 |---|---|---|
-| [lbfgsb](https://github.com/jacobwilliams/lbfgsb) (L-BFGS-B 3.0 by Zhu, Byrd, Lu, Nocedal and Morales; modernized by Jacob Williams) | Optimizer for `fit` | BSD-3-Clause |
-| [test-drive](https://github.com/fortran-lang/test-drive) | Tests only | MIT or Apache-2.0 |
+| [test-drive](https://github.com/fortran-lang/test-drive) | Tests only (fpm downloads it) | MIT or Apache-2.0 |
 | LAPACK, BLAS (system libraries, e.g. Reference LAPACK or OpenBLAS) | Linear algebra | BSD-3-Clause (modified BSD) |
+
+## Libraries in the binary wheels
+
+The binary Python wheels are built by `cibuildwheel`, and `auditwheel` copies these
+shared libraries into `ssfortran.libs/`. Their licenses apply to those copies.
+
+| Library | License |
+|---|---|
+| OpenBLAS (BLAS and LAPACK) | BSD-3-Clause |
+| libgfortran, libquadmath, libgomp (GCC runtime) | GPL-3.0 with the GCC Runtime Library Exception 3.1, which permits distribution with programs compiled by GCC under any license |
 
 ## Citations
 

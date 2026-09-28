@@ -59,7 +59,7 @@ def _find_library():
     if env:
         return env
     here = Path(__file__).resolve().parent
-    candidates = [here] + [here.parents[1] / "build" / "cmake"]
+    candidates = [here, here.parents[2] / "build" / "cmake"]   # python/src/ssfortran
     for d in candidates:
         for name in _library_names():
             if (d / name).exists():

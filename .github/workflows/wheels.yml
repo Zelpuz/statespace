@@ -1,0 +1,92 @@
+# Build the source distribution and Linux wheels, and publish them.
+#
+# - Every push and pull request builds and tests (the wheels are tested
+#   against python/tests inside cibuildwheel; see [tool.cibuildwheel] in
+#   pyproject.toml).
+# - Running the workflow by hand (Actions > wheels > Run workflow) with target
+#   "testpypi" or "pypi" publishes there. Nothing publishes automatically.
+#
+# Publishing uses PyPI trusted publishing: no tokens are stored. Each index
+# needs a trusted publisher for this repository, this workflow (wheels.yml)
+# and the environment named below ("testpypi" or "pypi").
+name: wheels
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Publish to"
+        type: choice
+        options: [none, testpypi, pypi]
+        default: none
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the source distribution
+        run: pipx run build --sdist
+      - name: Build and test a wheel from it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran libopenblas-dev ninja-build
+          python -m venv venv
+          venv/bin/pip install dist/*.tar.gz pytest
+          venv/bin/pytest -q -o pythonpath= -o addopts= python/tests
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  wheels:
+    name: wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pypa/cibuildwheel@v4.2.1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  testpypi:
+    needs: [sdist, wheels]
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/ssfortran
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    needs: [sdist, wheels]
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ssfortran
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
