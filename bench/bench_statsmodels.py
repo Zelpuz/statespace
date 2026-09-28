@@ -12,8 +12,11 @@ import warnings
 
 import numpy as np
 import statsmodels.api as sm
-from statsmodels.tsa.statespace.kalman_filter import (FILTER_CONVENTIONAL, FILTER_UNIVARIATE,
-                                                      MEMORY_CONSERVE)
+from statsmodels.tsa.statespace.kalman_filter import (
+    FILTER_CONVENTIONAL,
+    FILTER_UNIVARIATE,
+    MEMORY_CONSERVE,
+)
 from statsmodels.tsa.statespace.kalman_smoother import KalmanSmoother
 
 warnings.simplefilter("ignore")
@@ -68,9 +71,12 @@ def model_case(name, mod, params, n):
 
 
 def bsm_case(n):
-    mod = sm.tsa.UnobservedComponents(rw_noise(n), level="llevel",
-                                      freq_seasonal=[{"period": 12}],
-                                      use_exact_diffuse=True)
+    mod = sm.tsa.UnobservedComponents(
+        rw_noise(n),
+        level="llevel",
+        freq_seasonal=[{"period": 12}],
+        use_exact_diffuse=True,
+    )
     model_case("bsm", mod, [1.0, 0.1, 0.01], n)
 
 
@@ -106,9 +112,13 @@ def many_case(nseries, n):
     ys = [rw_noise(n) for _ in range(nseries)]
     t0 = time.perf_counter()
     for y in ys:
-        sm.tsa.UnobservedComponents(y, level="llevel", use_exact_diffuse=True).fit(disp=False)
-    print(f"\nfit {nseries} local level series of n = {n}: "
-          f"{1000 * (time.perf_counter() - t0):10.1f} ms")
+        sm.tsa.UnobservedComponents(y, level="llevel", use_exact_diffuse=True).fit(
+            disp=False
+        )
+    print(
+        f"\nfit {nseries} local level series of n = {n}: "
+        f"{1000 * (time.perf_counter() - t0):10.1f} ms"
+    )
 
 
 if __name__ == "__main__":

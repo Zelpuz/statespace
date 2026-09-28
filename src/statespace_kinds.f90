@@ -12,9 +12,12 @@ module statespace_kinds
   integer, parameter, public :: SS_OK = 0
   integer, parameter, public :: SS_ERR_DIM = 1        !< inconsistent array dimensions
   integer, parameter, public :: SS_ERR_NOT_PD = 2     !< matrix not positive definite
-  integer, parameter, public :: SS_ERR_INIT = 3       !< missing or invalid initialization
+  integer, parameter, public :: SS_ERR_INIT = 3       !< missing or invalid
+                                                      !! initialization
   integer, parameter, public :: SS_ERR_UNSUPPORTED = 4 !< feature not implemented yet
   integer, parameter, public :: SS_ERR_SINGULAR = 5   !< singular linear system
-  integer, parameter, public :: SS_ERR_NOT_STATIONARY = 6 !< T has an eigenvalue |lambda| >= 1
-  integer, parameter, public :: SS_ERR_NOT_CONVERGED = 7  !< an iteration did not converge
+  integer, parameter, public :: SS_ERR_NOT_STATIONARY = 6 !< T has an eigenvalue
+                                                          !! |lambda| >= 1
+  integer, parameter, public :: SS_ERR_NOT_CONVERGED = 7  !< an iteration did not
+                                                          !! converge
 end module statespace_kinds

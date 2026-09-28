@@ -1,5 +1,5 @@
-!> Other state smoothers and the Whittle relation (DK 4.6), cross-time smoothed state covariances
-!> (DK 4.7) and weights (DK 4.8).
+!> Other state smoothers and the Whittle relation (DK 4.6), cross-time smoothed
+!> state covariances (DK 4.7) and weights (DK 4.8).
 module test_smoothing
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
   use testdrive, only: new_unittest, unittest_type, error_type, check
@@ -35,15 +35,17 @@ contains
     type(error_type), allocatable, intent(out) :: error
     real(dp), intent(in) :: actual(:), expected(:)
     character(len=*), intent(in) :: label
-    logical, allocatable :: use(:)
+    logical, allocatable :: keep(:)
     real(dp) :: err
     character(len=32) :: buf
 
-    use = .not. ieee_is_nan(expected)
-    call check(error, .not. any(ieee_is_nan(actual) .and. use), label//": unexpected NaN")
+    keep = .not. ieee_is_nan(expected)
+    call check(error, .not. any(ieee_is_nan(actual) .and. keep), &
+               label//": unexpected NaN")
     if (allocated(error)) return
-    if (.not. any(use)) return
-    err = maxval(abs(actual - expected), mask=use) / max(1.0_dp, maxval(abs(expected), mask=use))
+    if (.not. any(keep)) return
+    err = maxval(abs(actual - expected), mask=keep) &
+          / max(1.0_dp, maxval(abs(expected), mask=keep))
     write (buf, '(es10.3)') err
     call check(error, err <= rtol, label//": relative error "//trim(buf))
   end subroutine check_close
@@ -56,9 +58,12 @@ contains
     type(ssm_rep_t) :: rep
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
-    real(dp), allocatable :: acov(:, :, :), cov3(:, :, :), acov_fx(:, :, :), cov3_fx(:, :, :)
-    real(dp), allocatable :: W(:, :, :, :), C(:, :, :, :), A(:, :, :), recon(:, :), yd(:, :)
-    real(dp), allocatable :: c_t(:, :), a1(:), Pstar(:, :), Pinf(:, :), ahat(:, :), Vhat(:, :, :)
+    real(dp), allocatable :: acov(:, :, :), cov3(:, :, :), acov_fx(:, :, :), &
+                             cov3_fx(:, :, :)
+    real(dp), allocatable :: W(:, :, :, :), C(:, :, :, :), A(:, :, :), recon(:, :), &
+                             yd(:, :)
+    real(dp), allocatable :: c_t(:, :), a1(:), Pstar(:, :), Pinf(:, :), ahat(:, :), &
+                             Vhat(:, :, :)
     integer :: info, m, p, n, nd, t, j, ic, it, ir, id, iz
     logical :: weights
 
@@ -84,11 +89,13 @@ contains
     call fast_state_smoother(rep, fres, ahat, info)
     call check(error, info, SS_OK, "fast smoother info")
     if (allocated(error)) return
-    call check_close(error, pack(ahat, .true.), pack(sres%alphahat, .true.), "fast smoother")
+    call check_close(error, pack(ahat, .true.), pack(sres%alphahat, .true.), &
+                     "fast smoother")
     if (allocated(error)) return
     call classical_state_smoother(rep, fres, ahat, Vhat, info)
     if (nd > 0) then
-      call check(error, info, SS_ERR_UNSUPPORTED, "classical smoother with diffuse states")
+      call check(error, info, SS_ERR_UNSUPPORTED, &
+                 "classical smoother with diffuse states")
       if (allocated(error)) return
     else
       call check(error, info, SS_OK, "classical smoother info")
@@ -96,14 +103,16 @@ contains
       call check_close(error, pack(ahat, .true.), pack(sres%alphahat, .true.), &
                        "classical smoother alphahat")
       if (allocated(error)) return
-      call check_close(error, pack(Vhat, .true.), pack(sres%V, .true.), "classical smoother V")
+      call check_close(error, pack(Vhat, .true.), pack(sres%V, .true.), &
+                       "classical smoother V")
       if (allocated(error)) return
     end if
 
     ! Two-filter formula (DK 4.6.4), without diffuse states.
     call two_filter_smoother(rep, fres, ahat, Vhat, info)
     if (nd > 0) then
-      call check(error, info, SS_ERR_UNSUPPORTED, "two-filter smoother with diffuse states")
+      call check(error, info, SS_ERR_UNSUPPORTED, &
+                 "two-filter smoother with diffuse states")
       if (allocated(error)) return
     else
       call check(error, info, SS_OK, "two-filter smoother info")
@@ -128,11 +137,13 @@ contains
       if (t < n) then
         call check_close(error, sres%alphahat(:, t + 1), &
                          rep%c(:, ic) + matmul(rep%T(:, :, it), sres%alphahat(:, t)) &
-                         + matmul(rep%R(:, :, ir), sres%etahat(:, t)), "Whittle: state equation")
+                         + matmul(rep%R(:, :, ir), sres%etahat(:, t)), &
+                         "Whittle: state equation")
         if (allocated(error)) return
       end if
       call check_close(error, pack(rep%y(:, t), .not. ieee_is_nan(rep%y(:, t))), &
-                       pack(rep%d(:, id) + matmul(rep%Z(:, :, iz), sres%alphahat(:, t)) &
+                       pack(rep%d(:, id) + matmul(rep%Z(:, :, iz), &
+                                                  sres%alphahat(:, t)) &
                             + sres%epshat(:, t), .not. ieee_is_nan(rep%y(:, t))), &
                        "Whittle: observation equation")
       if (allocated(error)) return
@@ -145,10 +156,11 @@ contains
     if (allocated(error)) return
     acov_fx = ex%get3('autocov')
     acov_fx(:, :, 1:nd) = acov(:, :, 1:nd)   ! not defined in the diffuse period
-    call check(error, all(ieee_is_nan(acov(:, :, 1:nd))), "autocov NaN in diffuse period")
+    call check(error, all(ieee_is_nan(acov(:, :, 1:nd))), &
+               "autocov NaN in diffuse period")
     if (allocated(error)) return
-    call check_close(error, pack(acov(:, :, nd + 1:), .true.), pack(acov_fx(:, :, nd + 1:), .true.), &
-                     "autocov")
+    call check_close(error, pack(acov(:, :, nd + 1:), .true.), &
+                     pack(acov_fx(:, :, nd + 1:), .true.), "autocov")
     if (allocated(error)) return
     cov3_fx = ex%get3('cov_shift3')
     do t = nd + 1, n - 3
@@ -156,8 +168,8 @@ contains
       call check(error, info, SS_OK, "cov_between info")
       if (allocated(error)) return
     end do
-    call check_close(error, pack(cov3(:, :, nd + 1:), .true.), pack(cov3_fx(:, :, nd + 1:), .true.), &
-                     "Cov(alpha_t, alpha_t+3)")
+    call check_close(error, pack(cov3(:, :, nd + 1:), .true.), &
+                     pack(cov3_fx(:, :, nd + 1:), .true.), "Cov(alpha_t, alpha_t+3)")
     if (allocated(error)) return
     if (.not. weights) return
 
@@ -186,7 +198,8 @@ contains
     call rep%initial_state(a1, Pstar, Pinf, info)
     do t = 1, n
       do j = 1, n
-        recon(:, t) = recon(:, t) + matmul(W(:, :, t, j), yd(:, j)) + matmul(C(:, :, t, j), c_t(:, j))
+        recon(:, t) = recon(:, t) + matmul(W(:, :, t, j), yd(:, j)) &
+                      + matmul(C(:, :, t, j), c_t(:, j))
       end do
       recon(:, t) = recon(:, t) + matmul(A(:, :, t), a1)
     end do

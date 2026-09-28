@@ -26,7 +26,8 @@
 !> needed. Parameters are ordered component by component.
 module statespace_components
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM
-  use statespace_rep, only: ssm_rep_t, ssm_rep, INIT_DIFFUSE, INIT_STATIONARY, INIT_KNOWN
+  use statespace_rep, only: ssm_rep_t, ssm_rep, INIT_DIFFUSE, INIT_STATIONARY, &
+                            INIT_KNOWN
   use statespace_model, only: ssm_model_t, constrain_positive, unconstrain_positive
   implicit none
   private
@@ -40,7 +41,8 @@ module statespace_components
     integer :: m = 0        !< states
     integer :: r = 0        !< state disturbances
     integer :: k = 0        !< parameters
-    logical :: tv_Z = .false., tv_H = .false., tv_T = .false., tv_R = .false., tv_Q = .false.
+    logical :: tv_Z = .false., tv_H = .false., tv_T = .false., tv_R = .false., &
+               tv_Q = .false.
     !> Place this component at the observations rather than the signals.
     logical :: at_observations = .false.
   contains
@@ -69,7 +71,8 @@ module statespace_components
       import :: component_t, dp
       class(component_t), intent(in) :: self
       real(dp), intent(in) :: params(:)
-      real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+      real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                                 Q(:, :, :)
     end subroutine fill_iface
   end interface
 
@@ -80,9 +83,11 @@ module statespace_components
   !> A model assembled from components.
   type, extends(ssm_model_t) :: structural_model_t
     type(component_holder_t), allocatable :: comps(:)
-    integer, allocatable :: s0(:), e0(:), k0(:)   !< offsets of states, disturbances, params
+    integer, allocatable :: s0(:), e0(:), k0(:)   !< offsets of states, disturbances,
+                                                  !! params
     real(dp), allocatable :: loading(:, :)        !< (p, p_sig) Lambda
-    logical, allocatable :: loading_free(:, :)    !< entries of Lambda that are parameters
+    logical, allocatable :: loading_free(:, :)    !< entries of Lambda that are
+                                                  !! parameters
     integer :: k_comp = 0                         !< parameters of the components
     real(dp), allocatable :: Zsig(:, :, :)        !< (p_sig, m, 1|n) signal design
   contains
@@ -158,8 +163,8 @@ contains
         if (c%m == 0) cycle
         blocks = c%init_blocks()
         do j = 1, size(blocks, 1)
-          call mod%rep%initialize_block(mod%s0(i) + blocks(j, 1), mod%s0(i) + blocks(j, 2), &
-                                        blocks(j, 3))
+          call mod%rep%initialize_block(mod%s0(i) + blocks(j, 1), &
+                                        mod%s0(i) + blocks(j, 2), blocks(j, 3))
         end do
       end associate
     end do
@@ -184,9 +189,12 @@ contains
         else
           Zb = self%Zsig(:, s + 1:s + c%m, 1:merge(size(self%Zsig, 3), 1, c%tv_Z))
         end if
-        Tb = self%rep%T(s + 1:s + c%m, s + 1:s + c%m, 1:merge(size(self%rep%T, 3), 1, c%tv_T))
-        Rb = self%rep%R(s + 1:s + c%m, e + 1:e + c%r, 1:merge(size(self%rep%R, 3), 1, c%tv_R))
-        Qb = self%rep%Q(e + 1:e + c%r, e + 1:e + c%r, 1:merge(size(self%rep%Q, 3), 1, c%tv_Q))
+        Tb = self%rep%T(s + 1:s + c%m, s + 1:s + c%m, &
+                        1:merge(size(self%rep%T, 3), 1, c%tv_T))
+        Rb = self%rep%R(s + 1:s + c%m, e + 1:e + c%r, &
+                        1:merge(size(self%rep%R, 3), 1, c%tv_R))
+        Qb = self%rep%Q(e + 1:e + c%r, e + 1:e + c%r, &
+                        1:merge(size(self%rep%Q, 3), 1, c%tv_Q))
         Zb = 0.0_dp; Tb = 0.0_dp; Rb = 0.0_dp; Qb = 0.0_dp
         call c%fill(params(k + 1:k + c%k), Zb, self%rep%H, Tb, Rb, Qb)
         if (c%observation_level()) then
@@ -267,7 +275,8 @@ contains
     do i = 1, size(self%comps)
       k = self%k0(i)
       associate (c => self%comps(i)%c)
-        if (c%k > 0) constrained(k + 1:k + c%k) = c%transform_params(unconstrained(k + 1:k + c%k))
+        if (c%k > 0) constrained(k + 1:k + c%k) = &
+            c%transform_params(unconstrained(k + 1:k + c%k))
       end associate
     end do
   end function sm_transform
@@ -282,7 +291,8 @@ contains
     do i = 1, size(self%comps)
       k = self%k0(i)
       associate (c => self%comps(i)%c)
-        if (c%k > 0) unconstrained(k + 1:k + c%k) = c%untransform_params(constrained(k + 1:k + c%k))
+        if (c%k > 0) unconstrained(k + 1:k + c%k) = &
+            c%untransform_params(constrained(k + 1:k + c%k))
       end associate
     end do
   end function sm_untransform

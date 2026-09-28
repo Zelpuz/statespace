@@ -43,8 +43,9 @@ module statespace_smoother
     real(dp), allocatable :: r0(:), r1(:), N0(:, :), N1(:, :), N2(:, :)
     !> Scratch for the conventional step and the state disturbances,
     !> allocated once per run.
-    real(dp), allocatable :: u(:), vz(:), r_prev(:), NL(:, :), PN(:, :), NK(:, :), HD(:, :), &
-                             ZtFinv(:, :), N_prev(:, :), D(:, :), L(:, :), NRQ(:, :)
+    real(dp), allocatable :: u(:), vz(:), r_prev(:), NL(:, :), PN(:, :), NK(:, :), &
+                             HD(:, :), ZtFinv(:, :), N_prev(:, :), D(:, :), L(:, :), &
+                             NRQ(:, :)
     !> R Q for the slices ir, iq of R and Q.
     real(dp), allocatable :: RQ(:, :)
     integer :: ir = 0, iq = 0
@@ -69,7 +70,8 @@ contains
     p = rep%k_endog; m = rep%k_states; r = rep%k_posdef; n = rep%nobs
     sres%k_endog = p; sres%k_states = m; sres%k_posdef = r; sres%nobs = n
     allocate (sres%alphahat(m, n), sres%V(m, m, n), sres%r(m, 0:n), sres%N(m, m, 0:n), &
-              sres%epshat(p, n), sres%epsvar(p, p, n), sres%etahat(r, n), sres%etavar(r, r, n))
+              sres%epshat(p, n), sres%epsvar(p, p, n), sres%etahat(r, n), &
+              sres%etavar(r, r, n))
     allocate (ws%r0(m), ws%r1(m), ws%N0(m, m), ws%N1(m, m), ws%N2(m, m), source=0.0_dp)
     allocate (ws%u(p), ws%vz(p), ws%r_prev(m), ws%NL(m, m), ws%PN(m, m), ws%NK(m, p), &
               ws%HD(p, p), ws%ZtFinv(m, p), ws%N_prev(m, m), ws%D(p, p), ws%L(m, m), &
@@ -215,10 +217,13 @@ contains
     ws%r1 = matmul(transpose(Zo), matmul(F1, vo)) + matmul(transpose(L0), r1) &
             + matmul(transpose(L1), r0)
     ws%N0 = matmul(transpose(L0), matmul(N0, L0))
-    ws%N1 = matmul(transpose(Zo), matmul(F1, Zo)) + matmul(transpose(L0), matmul(N1, L0)) &
+    ws%N1 = matmul(transpose(Zo), matmul(F1, Zo)) &
+            + matmul(transpose(L0), matmul(N1, L0)) &
             + matmul(transpose(L1), matmul(N0, L0))
-    ws%N2 = matmul(transpose(Zo), matmul(F2, Zo)) + matmul(transpose(L0), matmul(N2, L0)) &
-            + matmul(transpose(L0), matmul(N1, L1)) + matmul(transpose(L1), matmul(transpose(N1), L0)) &
+    ws%N2 = matmul(transpose(Zo), matmul(F2, Zo)) &
+            + matmul(transpose(L0), matmul(N2, L0)) &
+            + matmul(transpose(L0), matmul(N1, L1)) &
+            + matmul(transpose(L1), matmul(transpose(N1), L0)) &
             + matmul(transpose(L1), matmul(N0, L1))
     call symmetrize(ws%N0)
     call symmetrize(ws%N2)
@@ -236,7 +241,8 @@ contains
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
-    real(dp), allocatable, intent(out) :: Zo(:, :), vo(:), F1(:, :), F2(:, :), L0(:, :), L1(:, :)
+    real(dp), allocatable, intent(out) :: Zo(:, :), vo(:), F1(:, :), F2(:, :), &
+                                          L0(:, :), L1(:, :)
     real(dp), allocatable :: Tt(:, :), K0(:, :), K1(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: logdet
@@ -259,7 +265,8 @@ contains
   end subroutine diffuse_mv_gains
 
   !> alphahat = a + P_star r0 + P_inf r1 and
-  !> V = P_star - P_star N0 P_star - P_inf N1 P_star - (P_inf N1 P_star)' - P_inf N2 P_inf.
+  !> V = P_star - P_star N0 P_star - P_inf N1 P_star - (P_inf N1 P_star)'
+  !>     - P_inf N2 P_inf.
   subroutine diffuse_state(fres, t, ws, sres)
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
@@ -289,14 +296,16 @@ contains
   !>               N1 <- N1 L0   (K0 = M_star / F_star)
   !>
   !> Then alphahat = a + P_star r0 + P_inf r1 and
-  !> V = P_star - P_star N0 P_star - P_inf N1 P_star - (P_inf N1 P_star)' - P_inf N2 P_inf.
+  !> V = P_star - P_star N0 P_star - P_inf N1 P_star - (P_inf N1 P_star)'
+  !>     - P_inf N2 P_inf.
   subroutine univariate_step(rep, fres, t, ws, sres)
     type(ssm_rep_t), intent(in) :: rep
     type(filter_result_t), intent(in) :: fres
     integer, intent(in) :: t
     type(smoother_ws_t), intent(inout) :: ws
     type(smoother_result_t), intent(inout) :: sres
-    real(dp), allocatable :: z(:), K0(:), K1(:), L0(:, :), L1(:, :), zz(:, :), A(:, :), B(:, :)
+    real(dp), allocatable :: z(:), K0(:), K1(:), L0(:, :), L1(:, :), zz(:, :), &
+                             A(:, :), B(:, :)
     real(dp), allocatable :: N0(:, :), N1(:, :), N2(:, :), r0(:), r1(:), PN(:, :)
     real(dp) :: v, Fs, Fi
     logical :: diffuse
@@ -456,7 +465,8 @@ contains
     GV = matmul(G, Voo)
     epsvar(im, io) = GV
     epsvar(io, im) = transpose(GV)
-    epsvar(im, im) = rep%H(im, im, ih) - matmul(G, rep%H(io, im, ih)) + matmul(GV, transpose(G))
+    epsvar(im, im) = rep%H(im, im, ih) - matmul(G, rep%H(io, im, ih)) &
+                     + matmul(GV, transpose(G))
   end subroutine measurement_disturbance
 
   !> S <- T' S T for symmetric S.

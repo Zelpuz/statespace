@@ -18,7 +18,8 @@ program bench
 
   integer, parameter :: i8 = selected_int_kind(18)
   integer :: k
-  integer, parameter :: sizes_small(2) = [10000, 100000], sizes_ll(3) = [10000, 100000, 1000000]
+  integer, parameter :: sizes_small(2) = [10000, 100000], &
+                        sizes_ll(3) = [10000, 100000, 1000000]
 
   call seed(1)
   print '(a8, a10, 3a14)', "case", "n", "loglike", "filter", "filter+smooth"
@@ -200,8 +201,9 @@ contains
       call fit(mod, res, info=info)
       if (info /= SS_OK) nfail = nfail + 1
     end do
-    print '(/, a, i0, a, i0, a, f10.1, a, i0, a)', "fit ", nseries, " local level series of n = ", n, &
-      ": ", 1000 * (now() - t0), " ms (", nfail, " without standard errors)"
+    print '(/, a, i0, a, i0, a, f10.1, a, i0, a)', "fit ", nseries, &
+        " local level series of n = ", n, ": ", 1000 * (now() - t0), " ms (", nfail, &
+        " without standard errors)"
     call run_fit_many(y, comps)
   end subroutine run_many
 

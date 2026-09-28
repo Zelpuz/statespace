@@ -3,7 +3,6 @@
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
 from _fixtures import read_fixture
 
@@ -20,16 +19,23 @@ def local_level_template(y):
 
 
 def test_mapped_local_level_matches_structural():
-    mod = ss.MappedModel(local_level_template(NILE), 2, ["sigma2.irregular", "sigma2.level"],
-                         start_params=[NILE.var() / 2] * 2)
+    mod = ss.MappedModel(
+        local_level_template(NILE),
+        2,
+        ["sigma2.irregular", "sigma2.level"],
+        start_params=[NILE.var() / 2] * 2,
+    )
     mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0).constrain([0, 1], "positive")
     ref = ss.StructuralModel(NILE, [ss.Irregular(), ss.Level()])
-    assert mod.loglike([15099.0, 1469.1]) == pytest.approx(ref.loglike([15099.0, 1469.1]),
-                                                           rel=1e-12)
+    assert mod.loglike([15099.0, 1469.1]) == pytest.approx(
+        ref.loglike([15099.0, 1469.1]), rel=1e-12
+    )
     r1 = mod.fit(factr=10.0, pgtol=1e-9)
     r2 = ref.fit(factr=10.0, pgtol=1e-9)
     assert r1.param_names == r2.param_names
-    assert np.allclose(r1.params, r2.params, rtol=1e-5) and r1.llf == pytest.approx(r2.llf)
+    assert np.allclose(r1.params, r2.params, rtol=1e-5) and r1.llf == pytest.approx(
+        r2.llf
+    )
     assert r1.analytic_gradient
 
 
@@ -100,14 +106,17 @@ class LocalLevel(ss.MLEModel):
 def test_mlemodel_matches_structural():
     mod = LocalLevel(NILE)
     ref = ss.StructuralModel(NILE, [ss.Irregular(), ss.Level()])
-    assert mod.loglike([15099.0, 1469.1]) == pytest.approx(ref.loglike([15099.0, 1469.1]),
-                                                           rel=1e-12)
+    assert mod.loglike([15099.0, 1469.1]) == pytest.approx(
+        ref.loglike([15099.0, 1469.1]), rel=1e-12
+    )
     r1 = mod.fit(factr=10.0, pgtol=1e-9)
     r2 = ref.fit(factr=10.0, pgtol=1e-9)
     assert np.allclose(r1.params, r2.params, rtol=1e-5)
     assert r1.param_names == ["sigma2.irregular", "sigma2.level"]
     assert mod.calls > 0
-    assert np.allclose(mod.transform_params(mod.untransform_params([2.0, 3.0])), [2.0, 3.0])
+    assert np.allclose(
+        mod.transform_params(mod.untransform_params([2.0, 3.0])), [2.0, 3.0]
+    )
     sm = r1.smooth()
     assert sm.smoothed_state.shape == (1, NILE.size)
 
@@ -116,16 +125,20 @@ def test_mlemodel_errors_propagate():
     mod = LocalLevel(NILE)
     with pytest.raises(ValueError, match="negative variance"):
         mod.loglike([-1.0, 1.0])
-    assert mod.loglike([15099.0, 1469.1]) < 0     # usable afterwards
+    assert mod.loglike([15099.0, 1469.1]) < 0  # usable afterwards
 
 
 def test_fit_many_models():
     mapped = []
     for i in range(3):
-        m = ss.MappedModel(local_level_template(NILE[i * 10:]), 2,
-                           start_params=[NILE.var() / 2] * 2)
-        mapped.append(m.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
-                      .constrain([0, 1], "positive"))
+        m = ss.MappedModel(
+            local_level_template(NILE[i * 10 :]), 2, start_params=[NILE.var() / 2] * 2
+        )
+        mapped.append(
+            m.map(0, "obs_cov", 0, 0)
+            .map(1, "state_cov", 0, 0)
+            .constrain([0, 1], "positive")
+        )
     res = ss.fit_many(mapped)
     assert all(r is not None and r.converged for r in res)
     with pytest.raises(TypeError):
@@ -160,10 +173,12 @@ def test_callback_failure_does_not_poison_the_model():
 
 def test_fit_many_rejects_callbacks_in_the_library():
     import ctypes
+
     mod = FixedH(NILE)
     hs = (ctypes.c_void_p * 1)(mod._h.value)
     fhs = (ctypes.c_void_p * 1)()
     infos = (ctypes.c_int * 1)()
     from ssfortran._lib import lib
+
     code = lib.ss_fit_many(1, hs, 100, 10, 1e7, 1e-5, 0, 0, fhs, infos)
-    assert code == 4        # SS_ERR_UNSUPPORTED
+    assert code == 4  # SS_ERR_UNSUPPORTED

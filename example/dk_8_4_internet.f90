@@ -25,7 +25,8 @@ program dk_8_4_internet
   use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan
   implicit none
 
-  integer, parameter :: missing(14) = [6, 16, 26, 36, 46, 56, 66, 72, 73, 74, 75, 76, 86, 96]
+  integer, parameter :: missing(14) = [6, 16, 26, 36, 46, 56, 66, 72, 73, 74, 75, 76, &
+                                       86, 96]
   character(len=32), allocatable :: names(:)
   real(dp), allocatable :: data(:, :), users(:), dy(:, :)
 
@@ -39,7 +40,8 @@ program dk_8_4_internet
   dy(1, missing) = ieee_value(1.0_dp, ieee_quiet_nan)
   print '(/, a)', "Table 8.2: the same with 14 observations missing"
   call aic_table(dy)
-  print '(/, a)', "ARMA(1, 1) forecasts with 50% intervals, series with missing observations"
+  print '(/, a)', &
+      "ARMA(1, 1) forecasts with 50% intervals, series with missing observations"
   call forecasts(dy, 10)
 
 contains
@@ -104,7 +106,8 @@ contains
     print '(4x, a, 3a10)', "t", "forecast", "lower", "upper"
     do j = 1, h
       sd = sqrt(fc%cov(1, 1, j))
-      print '(i5, 3f10.3)', size(y, 2) + j, fc%mean(1, j), fc%mean(1, j) - z50 * sd, fc%mean(1, j) + z50 * sd
+      print '(i5, 3f10.3)', size(y, 2) + j, fc%mean(1, j), fc%mean(1, j) - z50 * sd, &
+          fc%mean(1, j) + z50 * sd
     end do
   end subroutine forecasts
 end program dk_8_4_internet

@@ -20,23 +20,27 @@
 !> full-size update and smoother formulas exact.
 module statespace_filter
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_value, ieee_quiet_nan
-  use statespace_kinds, only: dp, log2pi, SS_OK, SS_ERR_UNSUPPORTED, SS_ERR_NOT_CONVERGED, &
-                              SS_ERR_NOT_PD
-  use statespace_linalg, only: gemm, gemv, chol_inv, symmetrize, ldl_psd, solve_unit_lower, &
-                               is_diagonal, solve, eye
+  use statespace_kinds, only: dp, log2pi, SS_OK, SS_ERR_UNSUPPORTED, &
+                              SS_ERR_NOT_CONVERGED, SS_ERR_NOT_PD
+  use statespace_linalg, only: gemm, gemv, chol_inv, symmetrize, ldl_psd, &
+                               solve_unit_lower, is_diagonal, solve, eye
   use statespace_rep, only: ssm_rep_t, tidx, FILTER_UNIVARIATE, DIFFUSE_MULTIVARIATE
   implicit none
   private
 
-  public :: filter_result_t, kalman_filter, loglike, loglike_concentrated, marginal_correction
+  public :: filter_result_t, kalman_filter, loglike, loglike_concentrated, &
+            marginal_correction
   public :: steady_state
 
   !> How each period was filtered (filter_result_t%method).
-  integer, parameter, public :: METHOD_CONVENTIONAL = 0  !< vector update (DK 4.3); with
-                                                        !! diffuse states, the F_inf = 0 case
-  integer, parameter, public :: METHOD_UNIVARIATE = 1    !< univariate treatment (DK 6.4)
-  integer, parameter, public :: METHOD_DIFFUSE_MV = 2    !< multivariate exact initial
-                                                        !! update, F_inf nonsingular (DK 5.2)
+  integer, parameter, public :: METHOD_CONVENTIONAL = 0  !< vector update (DK 4.3);
+                                                        !! with diffuse states, the
+                                                        !! F_inf = 0 case
+  integer, parameter, public :: METHOD_UNIVARIATE = 1    !< univariate treatment
+                                                        !! (DK 6.4)
+  integer, parameter, public :: METHOD_DIFFUSE_MV = 2    !< multivariate exact
+                                                        !! initial update, F_inf
+                                                        !! nonsingular (DK 5.2)
 
   !> Off-diagonal elements of H_t below this are treated as zero, as in
   !> statsmodels.
@@ -59,12 +63,14 @@ module statespace_filter
   type :: filter_result_t
     integer :: k_endog = 0, k_states = 0, nobs = 0
     integer :: nobs_diffuse = 0       !< periods with a diffuse state (DK's d)
-    integer :: t_steady = 0           !< first period in the steady state (0: none; see tol_steady)
+    integer :: t_steady = 0           !< first period in the steady state
+                                      !! (0: none; see tol_steady)
     integer, allocatable :: method(:)  !< (n) METHOD_* used for each period
     integer :: k_diffuse = 0          !< rank of P_inf,1
     real(dp), allocatable :: a(:, :)        !< (m, n+1)
     real(dp), allocatable :: P(:, :, :)     !< (m, m, n+1)
-    real(dp), allocatable :: Pinf(:, :, :)  !< (m, m, n+1), zero after the diffuse period
+    real(dp), allocatable :: Pinf(:, :, :)  !< (m, m, n+1), zero after the
+                                            !! diffuse period
     real(dp), allocatable :: att(:, :)      !< (m, n)
     real(dp), allocatable :: Ptt(:, :, :)   !< (m, m, n)
     real(dp), allocatable :: yhat(:, :)     !< (p, n) one-step forecasts d + Z a_t
@@ -92,7 +98,8 @@ module statespace_filter
   !> Scratch arrays for one filter step, allocated once per filter run. The
   !> e_ arrays hold the per-element output of the last univariate step.
   type :: filter_ws_t
-    real(dp), allocatable :: PZt(:, :), M(:, :), vz(:), Finv_v(:), TP(:, :), RQ(:, :), RQR(:, :)
+    real(dp), allocatable :: PZt(:, :), M(:, :), vz(:), Finv_v(:), TP(:, :), RQ(:, :), &
+                             RQR(:, :)
     logical, allocatable :: obs(:)
     integer :: ir = 0, iq = 0   !< slices of R and Q that RQR was computed from
     !> Set by each step: the sum of v^2 / F (v' F^-1 v) terms in llf_t and how
@@ -140,9 +147,10 @@ contains
     nan = ieee_value(1.0_dp, ieee_quiet_nan)
     res%k_endog = p; res%k_states = m; res%nobs = n
     res%k_diffuse = rep%k_diffuse()
-    allocate (res%a(m, n + 1), res%P(m, m, n + 1), res%Pinf(m, m, n + 1), res%att(m, n), &
-              res%Ptt(m, m, n), res%yhat(p, n), res%v(p, n), res%F(p, p, n), res%Finf(p, p, n), &
-              res%Finv(p, p, n), res%K(m, p, n), res%llf_obs(n), res%method(n))
+    allocate (res%a(m, n + 1), res%P(m, m, n + 1), res%Pinf(m, m, n + 1), &
+              res%att(m, n), res%Ptt(m, m, n), res%yhat(p, n), res%v(p, n), &
+              res%F(p, p, n), res%Finf(p, p, n), res%Finv(p, p, n), res%K(m, p, n), &
+              res%llf_obs(n), res%method(n))
     call ws_init(ws, rep)
 
     call rep%initial_state(res%a(:, 1), res%P(:, :, 1), res%Pinf(:, :, 1), info)
@@ -178,42 +186,50 @@ contains
       end if
       select case (res%method(t))
       case (METHOD_UNIVARIATE)
-        call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
-                                 res%yhat(:, t), res%v(:, t), res%F(:, :, t), res%Finf(:, :, t))
+        call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), &
+                                 res%Pinf(:, :, t), res%yhat(:, t), res%v(:, t), &
+                                 res%F(:, :, t), res%Finf(:, :, t))
         res%Finv(:, :, t) = nan
         res%K(:, :, t) = nan
-        call univariate_step(rep, t, ws, diffuse, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
-                             res%att(:, t), res%Ptt(:, :, t), res%a(:, t + 1), &
-                             res%P(:, :, t + 1), res%Pinf(:, :, t + 1), res%llf_obs(t), info)
+        call univariate_step(rep, t, ws, diffuse, res%a(:, t), res%P(:, :, t), &
+                             res%Pinf(:, :, t), res%att(:, t), res%Ptt(:, :, t), &
+                             res%a(:, t + 1), res%P(:, :, t + 1), &
+                             res%Pinf(:, :, t + 1), res%llf_obs(t), info)
         if (info /= SS_OK) return
         call store_elements(ws, t, res)
       case (METHOD_DIFFUSE_MV)
-        call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
-                                 res%yhat(:, t), res%v(:, t), res%F(:, :, t), res%Finf(:, :, t))
+        call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), &
+                                 res%Pinf(:, :, t), res%yhat(:, t), res%v(:, t), &
+                                 res%F(:, :, t), res%Finf(:, :, t))
         res%Finv(:, :, t) = nan
         res%K(:, :, t) = nan
-        call diffuse_mv_step(rep, t, ws, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
-                             res%att(:, t), res%Ptt(:, :, t), res%a(:, t + 1), &
-                             res%P(:, :, t + 1), res%Pinf(:, :, t + 1), res%llf_obs(t), info)
+        call diffuse_mv_step(rep, t, ws, res%a(:, t), res%P(:, :, t), &
+                             res%Pinf(:, :, t), res%att(:, t), res%Ptt(:, :, t), &
+                             res%a(:, t + 1), res%P(:, :, t + 1), &
+                             res%Pinf(:, :, t + 1), res%llf_obs(t), info)
         if (info /= SS_OK) return
       case default
         ! Conventional; in a diffuse period this is the F_inf = 0 case, where
         ! P_inf only propagates: P_inf,t+1 = T P_inf T'.
-        call filter_step(rep, t, ws, res%a(:, t), res%P(:, :, t), res%yhat(:, t), res%v(:, t), &
-                         res%F(:, :, t), res%Finv(:, :, t), res%K(:, :, t), res%att(:, t), &
-                         res%Ptt(:, :, t), res%a(:, t + 1), res%P(:, :, t + 1), &
-                         res%llf_obs(t), info)
+        call filter_step(rep, t, ws, res%a(:, t), res%P(:, :, t), res%yhat(:, t), &
+                         res%v(:, t), res%F(:, :, t), res%Finv(:, :, t), &
+                         res%K(:, :, t), res%att(:, t), res%Ptt(:, :, t), &
+                         res%a(:, t + 1), res%P(:, :, t + 1), res%llf_obs(t), info)
         if (info /= SS_OK) return
         res%Finf(:, :, t) = 0.0_dp
         res%Pinf(:, :, t + 1) = 0.0_dp
-        if (.not. diffuse) call check_steady(rep, t, ws, res%P(:, :, t), res%P(:, :, t + 1), &
-                                             res%Finv(:, :, t))
+        if (.not. diffuse) then
+          call check_steady(rep, t, ws, res%P(:, :, t), res%P(:, :, t + 1), &
+                            res%Finv(:, :, t))
+        end if
         if (diffuse) then
-          call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), res%Pinf(:, :, t), &
-                                   res%yhat(:, t), res%v(:, t), res%F(:, :, t), res%Finf(:, :, t))
+          call observation_moments(rep, t, res%a(:, t), res%P(:, :, t), &
+                                   res%Pinf(:, :, t), res%yhat(:, t), res%v(:, t), &
+                                   res%F(:, :, t), res%Finf(:, :, t))
           it = tidx(size(rep%T, 3), t)
           call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), res%Pinf(:, :, t), 0.0_dp, ws%TP)
-          call gemm('N', 'T', 1.0_dp, ws%TP, rep%T(:, :, it), 0.0_dp, res%Pinf(:, :, t + 1))
+          call gemm('N', 'T', 1.0_dp, ws%TP, rep%T(:, :, it), 0.0_dp, &
+                    res%Pinf(:, :, t + 1))
         end if
       end select
       if (diffuse) then
@@ -234,7 +250,9 @@ contains
     integer :: nstar
 
     call loglike_core(rep, llf, quad, nstar, info)
-    if (info == SS_OK .and. rep%marginal_likelihood) llf = llf + marginal_correction(rep, info)
+    if (info == SS_OK .and. rep%marginal_likelihood) then
+      llf = llf + marginal_correction(rep, info)
+    end if
   end function loglike
 
   !> Log likelihood with a scale factor sigma^2 concentrated out (DK 2.10.2,
@@ -277,7 +295,8 @@ contains
   real(dp) function marginal_correction(rep, info) result(corr)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(out) :: info
-    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), L(:, :), D(:), A(:, :), V(:, :)
+    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), L(:, :), D(:), A(:, :), &
+                             V(:, :)
     real(dp), allocatable :: S(:, :), TA(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: logdet
@@ -326,8 +345,10 @@ contains
     integer, intent(out) :: nstar
     integer, intent(out) :: info
     type(filter_ws_t) :: ws
-    real(dp), allocatable :: at(:), Pt(:, :), Pinft(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
-    real(dp), allocatable :: att(:), Ptt(:, :), yhat(:), v(:), F(:, :), Finv(:, :), K(:, :)
+    real(dp), allocatable :: at(:), Pt(:, :), Pinft(:, :), anext(:), Pnext(:, :), &
+                             Pinfnext(:, :)
+    real(dp), allocatable :: att(:), Ptt(:, :), yhat(:), v(:), F(:, :), Finv(:, :), &
+                             K(:, :)
     real(dp) :: llf_t
     integer :: p, m, t, it
     logical :: diffuse
@@ -339,8 +360,8 @@ contains
     call rep%validate(info)
     if (info /= SS_OK) return
     p = rep%k_endog; m = rep%k_states
-    allocate (at(m), Pt(m, m), Pinft(m, m), anext(m), Pnext(m, m), Pinfnext(m, m), att(m), &
-              Ptt(m, m), yhat(p), v(p), F(p, p), Finv(p, p), K(m, p))
+    allocate (at(m), Pt(m, m), Pinft(m, m), anext(m), Pnext(m, m), Pinfnext(m, m), &
+              att(m), Ptt(m, m), yhat(p), v(p), F(p, p), Finv(p, p), K(m, p))
     call ws_init(ws, rep)
 
     call rep%initial_state(at, Pt, Pinft, info)
@@ -363,15 +384,17 @@ contains
       end if
       select case (period_method(rep, t, diffuse, Pinft))
       case (METHOD_UNIVARIATE)
-        call univariate_step(rep, t, ws, diffuse, at, Pt, Pinft, att, Ptt, anext, Pnext, &
-                             Pinfnext, llf_t, info)
+        call univariate_step(rep, t, ws, diffuse, at, Pt, Pinft, att, Ptt, anext, &
+                             Pnext, Pinfnext, llf_t, info)
       case (METHOD_DIFFUSE_MV)
-        call diffuse_mv_step(rep, t, ws, at, Pt, Pinft, att, Ptt, anext, Pnext, Pinfnext, &
-                             llf_t, info)
+        call diffuse_mv_step(rep, t, ws, at, Pt, Pinft, att, Ptt, anext, Pnext, &
+                             Pinfnext, llf_t, info)
       case default
-        call filter_step(rep, t, ws, at, Pt, yhat, v, F, Finv, K, att, Ptt, anext, Pnext, &
-                         llf_t, info)
-        if (info == SS_OK .and. .not. diffuse) call check_steady(rep, t, ws, Pt, Pnext, Finv)
+        call filter_step(rep, t, ws, at, Pt, yhat, v, F, Finv, K, att, Ptt, anext, &
+                         Pnext, llf_t, info)
+        if (info == SS_OK .and. .not. diffuse) then
+          call check_steady(rep, t, ws, Pt, Pnext, Finv)
+        end if
         if (diffuse) then
           it = tidx(size(rep%T, 3), t)
           call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), Pinft, 0.0_dp, ws%TP)
@@ -417,7 +440,8 @@ contains
       obs = .not. ieee_is_nan(rep%y(:, t))
       n_o = count(obs)
       iz = tidx(size(rep%Z, 3), t)
-      Zo = reshape(pack(rep%Z(:, :, iz), spread(obs, 2, rep%k_states)), [n_o, rep%k_states])
+      Zo = reshape(pack(rep%Z(:, :, iz), spread(obs, 2, rep%k_states)), &
+                   [n_o, rep%k_states])
       Fi = matmul(Zo, matmul(Pinf, transpose(Zo)))
       if (maxval(abs(Fi)) <= rep%tol_diffuse) then
         method = METHOD_CONVENTIONAL
@@ -443,16 +467,18 @@ contains
   !>
   !> followed by the usual prediction, with P_inf,t+1 = T P_inf,t|t T'. The
   !> period contributes -(n_o log 2 pi + log|F_inf|) / 2 (DK 7.2.2).
-  subroutine diffuse_mv_step(rep, t, ws, a, Pstar, Pinf, att, Ptt, anext, Pnext, Pinfnext, &
-                             llf_t, info)
+  subroutine diffuse_mv_step(rep, t, ws, a, Pstar, Pinf, att, Ptt, anext, Pnext, &
+                             Pinfnext, llf_t, info)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
     real(dp), intent(in), contiguous :: a(:), Pstar(:, :), Pinf(:, :)
-    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
+    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), &
+                                         Pinfnext(:, :)
     real(dp), intent(out) :: llf_t
     integer, intent(out) :: info
-    real(dp), allocatable :: Zo(:, :), vo(:), Fs(:, :), F1(:, :), F2(:, :), Ms(:, :), Mi(:, :)
+    real(dp), allocatable :: Zo(:, :), vo(:), Fs(:, :), F1(:, :), F2(:, :), Ms(:, :), &
+                             Mi(:, :)
     real(dp), allocatable :: MiF1(:, :), Pinftt(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: logdet
@@ -500,13 +526,14 @@ contains
     integer :: p, m, r
 
     p = rep%k_endog; m = rep%k_states; r = rep%k_posdef
-    allocate (ws%PZt(m, p), ws%M(m, p), ws%vz(p), ws%Finv_v(p), ws%TP(m, m), ws%RQ(m, r), &
-              ws%RQR(m, m), ws%obs(p))
-    allocate (ws%e_idx(p), ws%e_Zt(m, p), ws%e_sig2(p), ws%e_v(p), ws%e_Fstar(p), ws%e_Finf(p), &
-              ws%e_Mstar(m, p), ws%e_Minf(m, p))
-    ws%can_steady = rep%tol_steady >= 0.0_dp .and. rep%filter_method /= FILTER_UNIVARIATE .and. &
-                    size(rep%Z, 3) == 1 .and. size(rep%H, 3) == 1 .and. size(rep%T, 3) == 1 .and. &
-                    size(rep%R, 3) == 1 .and. size(rep%Q, 3) == 1
+    allocate (ws%PZt(m, p), ws%M(m, p), ws%vz(p), ws%Finv_v(p), ws%TP(m, m), &
+              ws%RQ(m, r), ws%RQR(m, m), ws%obs(p))
+    allocate (ws%e_idx(p), ws%e_Zt(m, p), ws%e_sig2(p), ws%e_v(p), ws%e_Fstar(p), &
+              ws%e_Finf(p), ws%e_Mstar(m, p), ws%e_Minf(m, p))
+    ws%can_steady = rep%tol_steady >= 0.0_dp .and. rep%filter_method &
+                    /= FILTER_UNIVARIATE .and. size(rep%Z, 3) == 1 &
+                    .and. size(rep%H, 3) == 1 .and. size(rep%T, 3) == 1 &
+                    .and. size(rep%R, 3) == 1 .and. size(rep%Q, 3) == 1
     if (ws%can_steady) allocate (ws%ss_Finv(p, p), ws%ss_M(m, p))
     allocate (ws%c_obs(p), ws%c_L(p, p), ws%c_y(p, 1), ws%K0(m), ws%K1(m))
   end subroutine ws_init
@@ -612,8 +639,8 @@ contains
 
   !> One conventional step: from the predicted (a, P) at time t, compute the
   !> forecast error quantities, the filtered state, and the next prediction.
-  subroutine filter_step(rep, t, ws, a, P, yhat, v, F, Finv, K, att, Ptt, anext, Pnext, llf_t, &
-                         info)
+  subroutine filter_step(rep, t, ws, a, P, yhat, v, F, Finv, K, att, Ptt, anext, &
+                         Pnext, llf_t, info)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
@@ -684,14 +711,15 @@ contains
   !> with M = P Z*_i' and F_star = Z*_i P_star Z*_i' + sigma2_i,
   !> F_inf = Z*_i P_inf Z*_i'. Elements with F_star = 0 (or <= tol_diffuse
   !> in diffuse periods) carry no information and are skipped.
-  subroutine univariate_step(rep, t, ws, diffuse, a, Pstar, Pinf, att, Ptt, anext, Pnext, &
-                             Pinfnext, llf_t, info)
+  subroutine univariate_step(rep, t, ws, diffuse, a, Pstar, Pinf, att, Ptt, anext, &
+                             Pnext, Pinfnext, llf_t, info)
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: t
     type(filter_ws_t), intent(inout) :: ws
     logical, intent(in) :: diffuse
     real(dp), intent(in), contiguous :: a(:), Pstar(:, :), Pinf(:, :)
-    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), Pinfnext(:, :)
+    real(dp), intent(out), contiguous :: att(:), Ptt(:, :), anext(:), Pnext(:, :), &
+                                         Pinfnext(:, :)
     real(dp), intent(out) :: llf_t
     integer, intent(out) :: info
     real(dp), allocatable :: Pinftt(:, :)
@@ -787,7 +815,9 @@ contains
         ! Same observation equation as last time: transform y only
         associate (idx => ws%e_idx(1:n_o))
           ws%c_y(1:n_o, 1) = rep%y(idx, t) - rep%d(idx, id)
-          if (.not. ws%c_diag) call solve_unit_lower(ws%c_L(1:n_o, 1:n_o), ws%c_y(1:n_o, :))
+          if (.not. ws%c_diag) then
+            call solve_unit_lower(ws%c_L(1:n_o, 1:n_o), ws%c_y(1:n_o, :))
+          end if
           ws%e_v(1:n_o) = ws%c_y(1:n_o, 1)
         end associate
         return
@@ -923,11 +953,11 @@ contains
   !> X_0 = W, so that X_k = P_(2^k + 1). Convergence like 1/t (a fixed
   !> regression effect, a nearly fixed seasonal) then takes about 40 steps.
   !> Otherwise the recursion itself is iterated, at most `maxiter` times
-  !> (default 100000), and a singular F_t gives SS_ERR_NOT_PD. Converged when the largest change in P is at most
-  !> `tol` (default 1e-12) times max(1, max|P|); else SS_ERR_NOT_CONVERGED,
-  !> with the last iterate returned. Time-varying system matrices give
-  !> SS_ERR_UNSUPPORTED. Missing observations and the initialization play no
-  !> role.
+  !> (default 100000), and a singular F_t gives SS_ERR_NOT_PD. Converged when the
+  !> largest change in P is at most `tol` (default 1e-12) times max(1, max|P|);
+  !> else SS_ERR_NOT_CONVERGED, with the last iterate returned. Time-varying
+  !> system matrices give SS_ERR_UNSUPPORTED. Missing observations and the
+  !> initialization play no role.
   subroutine steady_state(rep, P, F, info, tol, maxiter, niter)
     type(ssm_rep_t), intent(in) :: rep
     real(dp), intent(out), contiguous :: P(:, :)          !< (m, m) steady-state P
@@ -966,7 +996,8 @@ contains
         call solve(M, Fi, stat)
         if (stat /= SS_OK) exit
         Xn = X + matmul(transpose(A), matmul(X, Fi))
-        G = G + matmul(A, matmul(inverse_times(eye(mm) + matmul(G, X), G), transpose(A)))
+        G = G + matmul(A, matmul(inverse_times(eye(mm) + matmul(G, X), G), &
+                                 transpose(A)))
         A = matmul(A, Fi)
         call symmetrize(Xn); call symmetrize(G)
         if (converged(X, Xn)) then
@@ -987,7 +1018,8 @@ contains
           exit
         end if
         M = matmul(T, matmul(X, transpose(Z)))          ! T P Z'
-        Xn = matmul(T, matmul(X, transpose(T))) - matmul(M, matmul(Fi, transpose(M))) + W
+        Xn = matmul(T, matmul(X, transpose(T))) - matmul(M, matmul(Fi, transpose(M))) &
+             + W
         call symmetrize(Xn)
         if (converged(X, Xn)) then
           X = Xn

@@ -17,21 +17,20 @@ contains
   subroutine collect_recursions(testsuite)
     type(unittest_type), allocatable, intent(out) :: testsuite(:)
 
-    testsuite = [ &
-                new_unittest("dense_matches_recursions", test_dense), &
-                new_unittest("dense_rejects_diffuse", test_dense_diffuse), &
-                new_unittest("update_smoothed", test_update), &
-                new_unittest("fixed_point_smoother", test_fixed_point), &
-                new_unittest("fixed_lag_smoother", test_fixed_lag), &
-                new_unittest("filtering_weights", test_filter_weights), &
-                new_unittest("smoothing_weights_table_4_6", test_smoothing_weights_dk), &
-                new_unittest("whittle_recursion", test_whittle), &
-                new_unittest("de_jong_shephard", test_djs), &
-                new_unittest("steady_state_local_level", test_steady_nile), &
-                new_unittest("steady_state_long_filter", test_steady_filter), &
-                new_unittest("steady_state_arma_no_noise", test_steady_arma), &
-                new_unittest("steady_state_deterministic_level", test_steady_fixed) &
-                ]
+    testsuite = [ new_unittest("dense_matches_recursions", test_dense), &
+                 new_unittest("dense_rejects_diffuse", test_dense_diffuse), &
+                 new_unittest("update_smoothed", test_update), &
+                 new_unittest("fixed_point_smoother", test_fixed_point), &
+                 new_unittest("fixed_lag_smoother", test_fixed_lag), &
+                 new_unittest("filtering_weights", test_filter_weights), &
+                 new_unittest("smoothing_weights_table_4_6", &
+                              test_smoothing_weights_dk), &
+                 new_unittest("whittle_recursion", test_whittle), &
+                 new_unittest("de_jong_shephard", test_djs), &
+                 new_unittest("steady_state_local_level", test_steady_nile), &
+                 new_unittest("steady_state_long_filter", test_steady_filter), &
+                 new_unittest("steady_state_arma_no_noise", test_steady_arma), &
+                 new_unittest("steady_state_deterministic_level", test_steady_fixed) ]
   end subroutine collect_recursions
 
   subroutine check_rel(error, actual, expected, tol, label)
@@ -95,7 +94,8 @@ contains
       call check_rel(error, pack(a, .true.), pack(sres%alphahat, .true.), 1.0e-8_dp, &
                      trim(paths(k))//" alphahat")
       if (allocated(error)) return
-      call check_rel(error, pack(V, .true.), pack(sres%V, .true.), 1.0e-8_dp, trim(paths(k))//" V")
+      call check_rel(error, pack(V, .true.), pack(sres%V, .true.), 1.0e-8_dp, &
+                     trim(paths(k))//" V")
       if (allocated(error)) return
       deallocate (a, V)
     end do
@@ -133,13 +133,15 @@ contains
       part = truncated(rep, n0)
       call smooth(rep, fres, sres)
       call smooth(part, fpart, spart)
-      allocate (a(rep%k_states, rep%nobs), V(rep%k_states, rep%k_states, rep%nobs), source=0.0_dp)
+      allocate (a(rep%k_states, rep%nobs), V(rep%k_states, rep%k_states, rep%nobs), &
+                source=0.0_dp)
       a(:, 1:n0) = spart%alphahat
       V(:, :, 1:n0) = spart%V
       call update_smoothed(rep, fres, n0, a, V, info)
       call check(error, info, SS_OK, "update info")
       if (allocated(error)) return
-      call check_rel(error, pack(a, .true.), pack(sres%alphahat, .true.), 1.0e-9_dp, "alphahat")
+      call check_rel(error, pack(a, .true.), pack(sres%alphahat, .true.), 1.0e-9_dp, &
+                     "alphahat")
       if (allocated(error)) return
       call check_rel(error, pack(V, .true.), pack(sres%V, .true.), 1.0e-9_dp, "V")
       if (allocated(error)) return
@@ -161,16 +163,18 @@ contains
     fx = load_fixture("test/fixtures/mv_missing.txt")
     rep = rep_from_fixture(fx)
     call kalman_filter(rep, fres, info)
-    allocate (pa(rep%k_states, rep%nobs - t0 + 1), pV(rep%k_states, rep%k_states, rep%nobs - t0 + 1))
+    allocate (pa(rep%k_states, rep%nobs - t0 + 1), &
+              pV(rep%k_states, rep%k_states, rep%nobs - t0 + 1))
     call fixed_point_smoother(rep, fres, t0, pa, pV, info)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
     do k = t0, rep%nobs, 7
       call smooth(truncated(rep, k), fk, sk)
-      call check_rel(error, pa(:, k - t0 + 1), sk%alphahat(:, t0), 1.0e-9_dp, "alphahat")
+      call check_rel(error, pa(:, k - t0 + 1), sk%alphahat(:, t0), 1.0e-9_dp, &
+                     "alphahat")
       if (allocated(error)) return
-      call check_rel(error, pack(pV(:, :, k - t0 + 1), .true.), pack(sk%V(:, :, t0), .true.), &
-                     1.0e-9_dp, "V")
+      call check_rel(error, pack(pV(:, :, k - t0 + 1), .true.), &
+                     pack(sk%V(:, :, t0), .true.), 1.0e-9_dp, "V")
       if (allocated(error)) return
     end do
   end subroutine test_fixed_point
@@ -197,10 +201,12 @@ contains
       call smooth(truncated(rep, s + j), fk, sk)
       call check_rel(error, a(:, s), sk%alphahat(:, s), 1.0e-9_dp, "alphahat")
       if (allocated(error)) return
-      call check_rel(error, pack(V(:, :, s), .true.), pack(sk%V(:, :, s), .true.), 1.0e-9_dp, "V")
+      call check_rel(error, pack(V(:, :, s), .true.), pack(sk%V(:, :, s), .true.), &
+                     1.0e-9_dp, "V")
       if (allocated(error)) return
     end do
-    call check(error, all(ieee_is_nan(a(:, rep%nobs - j + 1:))), "undefined columns are NaN")
+    call check(error, all(ieee_is_nan(a(:, rep%nobs - j + 1:))), &
+               "undefined columns are NaN")
   end subroutine test_fixed_lag
 
   !> DK 4.8.2 weights against filtering unit inputs (the filter is linear in
@@ -232,11 +238,11 @@ contains
         unit = base
         unit%y(i, j) = 1.0_dp
         call kalman_filter(unit, fu, info)
-        call check_rel(error, pack(Wa(:, i, :, j), .true.), pack(fu%a(:, 1:n), .true.), 1.0e-10_dp, &
-                       "a_t weights")
+        call check_rel(error, pack(Wa(:, i, :, j), .true.), &
+                       pack(fu%a(:, 1:n), .true.), 1.0e-10_dp, "a_t weights")
         if (allocated(error)) return
-        call check_rel(error, pack(Watt(:, i, :, j), .true.), pack(fu%att, .true.), 1.0e-10_dp, &
-                       "a_t|t weights")
+        call check_rel(error, pack(Watt(:, i, :, j), .true.), pack(fu%att, .true.), &
+                       1.0e-10_dp, "a_t|t weights")
         if (allocated(error)) return
       end do
     end do
@@ -250,7 +256,8 @@ contains
     type(ssm_rep_t) :: rep
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
-    real(dp), allocatable :: W(:, :, :, :), C(:, :, :, :), A(:, :, :), prod(:, :), L(:, :)
+    real(dp), allocatable :: W(:, :, :, :), C(:, :, :, :), A(:, :, :), prod(:, :), &
+                             L(:, :)
     real(dp), allocatable :: K(:, :), Finv(:, :)
     integer :: info, t, j, s, m, p, n
 
@@ -269,8 +276,8 @@ contains
           prod = matmul(L, prod)
         end do
         prod = matmul(eye(m) - matmul(fres%P(:, :, t), sres%N(:, :, t - 1)), prod)
-        call check_rel(error, pack(W(:, :, t, j), .true.), pack(prod, .true.), 1.0e-9_dp, &
-                       "Table 4.6 weights")
+        call check_rel(error, pack(W(:, :, t, j), .true.), pack(prod, .true.), &
+                       1.0e-9_dp, "Table 4.6 weights")
         if (allocated(error)) return
       end do
     end do
@@ -296,7 +303,8 @@ contains
       call whittle_smoother(rep, fres, a, info)
       call check(error, info, SS_OK, "info")
       if (allocated(error)) return
-      call check_rel(error, pack(a, .true.), pack(sres%alphahat, .true.), 1.0e-6_dp, "alphahat")
+      call check_rel(error, pack(a, .true.), pack(sres%alphahat, .true.), 1.0e-6_dp, &
+                     "alphahat")
       if (allocated(error)) return
       deallocate (a)
     end do
@@ -313,7 +321,8 @@ contains
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     real(dp), allocatable :: u(:, :), u0(:), eps(:, :), eta(:, :), alpha(:, :)
-    real(dp), allocatable :: se(:, :), se2(:, :), sh(:, :), sh2(:, :), sa(:, :), sa2(:, :)
+    real(dp), allocatable :: se(:, :), se2(:, :), sh(:, :), sh2(:, :), sa(:, :), &
+                             sa2(:, :)
     integer, allocatable :: seed(:)
     integer :: info, k, nseed, p, m, r, n
     real(dp) :: z
@@ -327,7 +336,8 @@ contains
     p = rep%k_endog; m = rep%k_states; r = rep%k_posdef; n = rep%nobs
     call smooth(rep, fres, sres)
     allocate (eps(p, n), eta(r, n), alpha(m, n))
-    allocate (se(p, n), se2(p, n), sh(r, n), sh2(r, n), sa(m, n), sa2(m, n), source=0.0_dp)
+    allocate (se(p, n), se2(p, n), sh(r, n), sh2(r, n), sa(m, n), sa2(m, n), &
+              source=0.0_dp)
     do k = 1, ndraw
       allocate (u(p, n))
       do info = 1, n
@@ -372,9 +382,9 @@ contains
     real(dp) function zmax(mean, var, true_mean, true_var)
       real(dp), intent(in) :: mean(:, :), var(:, :), true_mean(:, :), true_var(:, :)
 
-      zmax = max(maxval(abs(mean - true_mean) / sqrt(true_var / ndraw), mask=true_var > 1.0e-12_dp), &
-                 maxval(abs(var - true_var) / (sqrt(2.0_dp / ndraw) * true_var), &
-                        mask=true_var > 1.0e-12_dp))
+      zmax = max(maxval(abs(mean - true_mean) / sqrt(true_var / ndraw), &
+                        mask=true_var > 1.0e-12_dp), maxval(abs(var - true_var) &
+          / (sqrt(2.0_dp / ndraw) * true_var), mask=true_var > 1.0e-12_dp))
     end function zmax
   end subroutine test_djs
 
@@ -395,7 +405,8 @@ contains
     if (allocated(error)) return
     q = 1469.1_dp / 15099.0_dp
     x = (q + sqrt(q**2 + 4 * q)) / 2
-    call check_rel(error, [P(1, 1), F(1, 1)], 15099.0_dp * [x, 1 + x], 1.0e-12_dp, "P, F")
+    call check_rel(error, [P(1, 1), F(1, 1)], 15099.0_dp * [x, 1 + x], 1.0e-12_dp, &
+                   "P, F")
   end subroutine test_steady_nile
 
   !> Correlated H, p = 2: the filter's P_t and F_t after many periods.
@@ -419,9 +430,11 @@ contains
     call steady_state(r, P, F, info)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
-    call check_rel(error, pack(P, .true.), pack(fres%P(:, :, n + 1), .true.), 1.0e-10_dp, "P")
+    call check_rel(error, pack(P, .true.), pack(fres%P(:, :, n + 1), .true.), &
+                   1.0e-10_dp, "P")
     if (allocated(error)) return
-    call check_rel(error, pack(F, .true.), pack(fres%F(:, :, n), .true.), 1.0e-10_dp, "F")
+    call check_rel(error, pack(F, .true.), pack(fres%F(:, :, n), .true.), 1.0e-10_dp, &
+                   "F")
   end subroutine test_steady_filter
 
   !> Singular H (the plain recursion): an invertible ARMA(1, 1) without

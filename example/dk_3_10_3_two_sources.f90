@@ -74,14 +74,17 @@ program dk_3_10_3_two_sources
   call show("Sigma_xi   ", res_b%params(4:6), truth(4:6))
   call show("Sigma_zeta ", res_b%params(7:9), truth(7:9))
   print '(/, a)', "Smoothed level and slope of y, RMSE against the truth:"
-  print '(2x, a, 2f10.4)', "bivariate (level, slope): ", rmse(s_b%alphahat(1, :), alpha(1, :)), &
-    rmse(s_b%alphahat(2, :), alpha(2, :))
-  print '(2x, a, 2f10.4)', "univariate:                ", rmse(s_u%alphahat(1, :), alpha(1, :)), &
-    rmse(s_u%alphahat(2, :), alpha(2, :))
-  print '(/, a, i0, a)', "Nowcast of y's level at t = ", n, " (survey not yet available):"
+  print '(2x, a, 2f10.4)', "bivariate (level, slope): ", &
+      rmse(s_b%alphahat(1, :), alpha(1, :)), rmse(s_b%alphahat(2, :), alpha(2, :))
+  print '(2x, a, 2f10.4)', "univariate:                ", &
+      rmse(s_u%alphahat(1, :), alpha(1, :)), rmse(s_u%alphahat(2, :), alpha(2, :))
+  print '(/, a, i0, a)', "Nowcast of y's level at t = ", n, &
+      " (survey not yet available):"
   print '(2x, a, f9.3)', "truth:      ", alpha(1, n)
-  print '(2x, a, f9.3, a, f7.3)', "bivariate:  ", s_b%alphahat(1, n), " +- ", sqrt(s_b%V(1, 1, n))
-  print '(2x, a, f9.3, a, f7.3)', "univariate: ", s_u%alphahat(1, n), " +- ", sqrt(s_u%V(1, 1, n))
+  print '(2x, a, f9.3, a, f7.3)', "bivariate:  ", s_b%alphahat(1, n), " +- ", &
+      sqrt(s_b%V(1, 1, n))
+  print '(2x, a, f9.3, a, f7.3)', "univariate: ", s_u%alphahat(1, n), " +- ", &
+      sqrt(s_u%V(1, 1, n))
 
 contains
 

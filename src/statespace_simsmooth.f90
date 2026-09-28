@@ -27,7 +27,8 @@ module statespace_simsmooth
   implicit none
   private
 
-  public :: simsmooth_result_t, simulate, simulation_smoother, draw_standard_normal, psd_sqrt
+  public :: simsmooth_result_t, simulate, simulation_smoother, draw_standard_normal, &
+            psd_sqrt
   public :: djs_measurement_disturbances, djs_state_disturbances
 
   type :: simsmooth_result_t
@@ -57,8 +58,8 @@ contains
 
     p = rep%k_endog; m = rep%k_states; r = rep%k_posdef; n = rep%nobs
     info = SS_ERR_DIM
-    if (size(u_init) /= m .or. any(shape(u_eps) /= [p, n]) .or. any(shape(u_eta) /= [r, n])) &
-      return
+    if (size(u_init) /= m .or. any(shape(u_eps) /= [p, n]) &
+        .or. any(shape(u_eta) /= [r, n])) return
     call rep%validate(info)
     if (info /= SS_OK) return
 
@@ -148,7 +149,8 @@ contains
     real(dp), intent(in), contiguous :: u_eps(:, :)    !< (p, n)
     real(dp), intent(out), contiguous :: eps(:, :)     !< (p, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: r(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), C(:, :), W(:, :)
+    real(dp), allocatable :: r(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), &
+                             C(:, :), W(:, :)
     real(dp), allocatable :: Zt(:, :), Ht(:, :), dvec(:), CW(:, :)
     integer :: t, p, m, iz, ih, it
 
@@ -203,7 +205,8 @@ contains
     real(dp), intent(out), contiguous :: eta(:, :)     !< (r, n)
     real(dp), intent(out), contiguous :: alpha(:, :)   !< (m, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: rtil(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), C(:, :), W(:, :)
+    real(dp), allocatable :: rtil(:), N(:, :), K(:, :), Finv(:, :), vz(:), L(:, :), &
+                             C(:, :), W(:, :)
     real(dp), allocatable :: Zt(:, :), Qt(:, :), Rmat(:, :), dvec(:), CW(:, :)
     integer :: t, p, m, it, ir, ic, iz, iq
 
@@ -239,7 +242,8 @@ contains
     end do
     C = fres%P(:, :, 1) - matmul(fres%P(:, :, 1), matmul(N, fres%P(:, :, 1)))
     call symmetrize(C)
-    alpha(:, 1) = fres%a(:, 1) + matmul(fres%P(:, :, 1), rtil) + matmul(psd_sqrt(C), u_init)
+    alpha(:, 1) = fres%a(:, 1) + matmul(fres%P(:, :, 1), rtil) &
+                  + matmul(psd_sqrt(C), u_init)
     do t = 1, rep%nobs - 1
       it = tidx(size(rep%T, 3), t)
       ir = tidx(size(rep%R, 3), t)

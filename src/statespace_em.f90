@@ -41,7 +41,9 @@ contains
 
     llf = 0.0_dp
     info = SS_ERR_UNSUPPORTED
-    if (size(rep%H, 3) > 1 .or. size(rep%Q, 3) > 1 .or. rep%loglikelihood_burn > 0) return
+    if (size(rep%H, 3) > 1 .or. size(rep%Q, 3) > 1 .or. rep%loglikelihood_burn > 0) then
+      return
+    end if
     if (allocated(rep%blk_kind)) then
       if (any(rep%blk_kind == INIT_STATIONARY)) return
     end if
@@ -54,7 +56,8 @@ contains
     if (info /= SS_OK) return
     llf = fres%llf
 
-    allocate (Hn(rep%k_endog, rep%k_endog), Qn(rep%k_posdef, rep%k_posdef), source=0.0_dp)
+    allocate (Hn(rep%k_endog, rep%k_endog), Qn(rep%k_posdef, rep%k_posdef), &
+              source=0.0_dp)
     do t = 1, n
       do j = 1, rep%k_endog
         Hn(:, j) = Hn(:, j) + sres%epshat(:, t) * sres%epshat(j, t)
@@ -86,7 +89,8 @@ contains
   !> or `maxiter` iterations. `llf` is the log likelihood at the start of the
   !> last iteration (rep holds the matrices after it); `llf_path` (optional)
   !> receives it for every iteration.
-  subroutine em_variances(rep, maxiter, tol, llf, niter, info, diagonal_H, diagonal_Q, llf_path)
+  subroutine em_variances(rep, maxiter, tol, llf, niter, info, diagonal_H, diagonal_Q, &
+                          llf_path)
     type(ssm_rep_t), intent(inout) :: rep
     integer, intent(in) :: maxiter
     real(dp), intent(in) :: tol

@@ -84,11 +84,13 @@ contains
       iq = tidx(size(rep%Q, 3), t)
       do i = 1, rep%k_endog
         v = rep%H(i, i, ih) - sres%epsvar(i, i, t)
-        eps_std(i, t) = merge(sres%epshat(i, t) / sqrt(max(v, tiny(1.0_dp))), nan, v > 0.0_dp)
+        eps_std(i, t) = merge(sres%epshat(i, t) / sqrt(max(v, tiny(1.0_dp))), nan, &
+                              v > 0.0_dp)
       end do
       do i = 1, rep%k_posdef
         v = rep%Q(i, i, iq) - sres%etavar(i, i, t)
-        eta_std(i, t) = merge(sres%etahat(i, t) / sqrt(max(v, tiny(1.0_dp))), nan, v > 0.0_dp)
+        eta_std(i, t) = merge(sres%etahat(i, t) / sqrt(max(v, tiny(1.0_dp))), nan, &
+                              v > 0.0_dp)
       end do
     end do
   end subroutine auxiliary_residuals
@@ -179,7 +181,9 @@ contains
       e = matmul(Finv, vz) - matmul(transpose(K), sres%r(:, t))
       D = Finv + matmul(transpose(K), matmul(sres%N(:, :, t), K))
       do i = 1, rep%k_endog
-        if (.not. ieee_is_nan(rep%y(i, t)) .and. D(i, i) > 0.0_dp) e_stat(i, t) = e(i) / sqrt(D(i, i))
+        if (.not. ieee_is_nan(rep%y(i, t)) .and. D(i, i) > 0.0_dp) then
+          e_stat(i, t) = e(i) / sqrt(D(i, i))
+        end if
       end do
     end do
   end subroutine de_jong_penzer
@@ -286,7 +290,8 @@ contains
     first = x(1:hh)
     dfn = count(.not. ieee_is_nan(last))
     dfd = count(.not. ieee_is_nan(first))
-    stat = sum(last**2, mask=.not. ieee_is_nan(last)) / sum(first**2, mask=.not. ieee_is_nan(first))
+    stat = sum(last**2, mask=.not. ieee_is_nan(last)) &
+           / sum(first**2, mask=.not. ieee_is_nan(first))
     lower = f_cdf(stat * dfd / dfn, real(dfn, dp), real(dfd, dp))
     pvalue = 2.0_dp * min(lower, 1.0_dp - lower)
   end subroutine breakvar_test
@@ -308,7 +313,8 @@ contains
     v = fres%v(k, d:)
     dy = rep%y(k, 2:) - rep%y(k, :rep%nobs - 1)
     dy = pack(dy, .not. ieee_is_nan(dy))
-    r2 = 1.0_dp - sum(v**2, mask=.not. ieee_is_nan(v)) / sum((dy - sum(dy) / size(dy))**2)
+    r2 = 1.0_dp - sum(v**2, mask=.not. ieee_is_nan(v)) &
+         / sum((dy - sum(dy) / size(dy))**2)
   end function r2_diffuse
 
   !> Prediction error variance (DK 7.4): the steady-state F of a
@@ -333,6 +339,8 @@ contains
 
     nint_even = floor(x)
     f = x - nint_even
-    if (f > 0.5_dp .or. (f == 0.5_dp .and. mod(nint_even, 2) /= 0)) nint_even = nint_even + 1
+    if (f > 0.5_dp .or. (f == 0.5_dp .and. mod(nint_even, 2) /= 0)) then
+      nint_even = nint_even + 1
+    end if
   end function nint_even
 end module statespace_diagnostics

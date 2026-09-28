@@ -4,8 +4,8 @@
 !> effect of parameter estimation. Conventions as in statespace_capi; periods
 !> passed as arguments are 1-based.
 module statespace_capi_extras
-  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_null_ptr, c_loc, c_f_pointer, &
-                                         c_associated
+  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_null_ptr, c_loc, &
+                                         c_f_pointer, c_associated
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM
   use statespace_rep, only: ssm_rep_t
   use statespace_filter, only: filter_result_t
@@ -14,12 +14,14 @@ module statespace_capi_extras
                              smoother_box
   use statespace_capi_models, only: model_box, get_model
   use statespace_smoothing, only: fast_state_smoother, classical_state_smoother, &
-                                  two_filter_smoother, whittle_smoother, fixed_point_smoother, &
-                                  fixed_lag_smoother, update_smoothed, smoothed_state_autocov, &
+                                  two_filter_smoother, whittle_smoother, &
+                                  fixed_point_smoother, fixed_lag_smoother, &
+                                  update_smoothed, smoothed_state_autocov, &
                                   smoothed_state_cov_between, filtered_state_weights, &
                                   smoothed_state_weights, innovation_transition
   use statespace_sqrt, only: sqrt_kalman_filter, sqrt_state_smoother
-  use statespace_augmented, only: augmented_result_t, augmented_filter, augmented_smoother
+  use statespace_augmented, only: augmented_result_t, augmented_filter, &
+                                  augmented_smoother
   use statespace_em, only: em_variances
   use statespace_collapse, only: collapse_observations
   use statespace_restrict, only: add_state_restrictions
@@ -34,15 +36,18 @@ module statespace_capi_extras
     type(augmented_result_t) :: res
   end type augmented_box
 
-  public :: ss_fast_smoother, ss_classical_smoother, ss_two_filter_smoother, ss_whittle_smoother
+  public :: ss_fast_smoother, ss_classical_smoother, ss_two_filter_smoother, &
+            ss_whittle_smoother
   public :: ss_fixed_point_smoother, ss_fixed_lag_smoother, ss_update_smoothed
-  public :: ss_smoothed_state_autocov, ss_smoothed_state_cov_between, ss_filtered_state_weights
+  public :: ss_smoothed_state_autocov, ss_smoothed_state_cov_between, &
+            ss_filtered_state_weights
   public :: ss_smoothed_state_weights, ss_innovation_transition
   public :: ss_sqrt_filter, ss_sqrt_smoother
   public :: ss_augmented_filter, ss_augmented_free, ss_augmented_info, ss_augmented_get
   public :: ss_augmented_filter_result, ss_augmented_smoother
   public :: ss_em, ss_collapse, ss_add_restrictions
-  public :: ss_auxiliary_residuals, ss_de_jong_penzer, ss_least_squares_residuals, ss_r2_diffuse
+  public :: ss_auxiliary_residuals, ss_de_jong_penzer, ss_least_squares_residuals, &
+            ss_r2_diffuse
   public :: ss_djs_simulation_smoother, ss_estimation_bias
 
 contains
@@ -216,13 +221,14 @@ contains
     call rep_filter(handle, fhandle, b, f)
     s => get_smoother(shandle)
     if (.not. associated(b) .or. .not. associated(s) .or. b%nobs < 2) return
-    call smoothed_state_autocov(b, f%res, s%res, m3(acov, b%k_states, b%k_states, b%nobs - 1), &
-                                stat)
+    call smoothed_state_autocov(b, f%res, s%res, &
+                                m3(acov, b%k_states, b%k_states, b%nobs - 1), stat)
     info = stat
   end function ss_smoothed_state_autocov
 
   !> C (m, m) = Cov(alpha_t, alpha_j | Y_n) (DK 4.7).
-  integer(c_int) function ss_smoothed_state_cov_between(handle, fhandle, shandle, t, j, C) &
+  integer(c_int) function ss_smoothed_state_cov_between(handle, fhandle, shandle, t, &
+                                                        j, C) &
     bind(C, name="ss_smoothed_state_cov_between") result(info)
     type(c_ptr), value :: handle, fhandle, shandle, C
     integer(c_int), value :: t, j
@@ -253,7 +259,8 @@ contains
     call rep_filter(handle, fhandle, b, f)
     if (.not. associated(b)) return
     m = b%k_states; p = b%k_endog; n = b%nobs
-    call filtered_state_weights(b, f%res, m4(Wa, m, p, n, n), m4(Watt, m, p, n, n), stat)
+    call filtered_state_weights(b, f%res, m4(Wa, m, p, n, n), m4(Watt, m, p, n, n), &
+                                stat)
     info = stat
   end function ss_filtered_state_weights
 
@@ -269,7 +276,8 @@ contains
     b => get_rep(handle)
     if (.not. associated(b)) return
     m = b%k_states; p = b%k_endog; n = b%nobs
-    call smoothed_state_weights(b, m4(W, m, p, n, n), m4(C, m, m, n, n), m3(A, m, m, n), stat)
+    call smoothed_state_weights(b, m4(W, m, p, n, n), m4(C, m, m, n, n), &
+                                m3(A, m, m, n), stat)
     info = stat
   end function ss_smoothed_state_weights
 
@@ -292,8 +300,8 @@ contains
   ! --------------------------------------------------------- DK 6.3, 5.7
 
   !> Square root filter (DK 6.3); fhandle as from ss_filter.
-  integer(c_int) function ss_sqrt_filter(handle, fhandle) bind(C, name="ss_sqrt_filter") &
-    result(info)
+  integer(c_int) function ss_sqrt_filter(handle, fhandle) &
+    bind(C, name="ss_sqrt_filter") result(info)
     type(c_ptr), value :: handle
     type(c_ptr), intent(out) :: fhandle
     type(ssm_rep_t), pointer :: b
@@ -339,8 +347,8 @@ contains
   end function ss_sqrt_smoother
 
   !> Augmented filter (DK 5.7); ahandle is freed with ss_augmented_free.
-  integer(c_int) function ss_augmented_filter(handle, ahandle) bind(C, name="ss_augmented_filter") &
-    result(info)
+  integer(c_int) function ss_augmented_filter(handle, ahandle) &
+    bind(C, name="ss_augmented_filter") result(info)
     type(c_ptr), value :: handle
     type(c_ptr), intent(out) :: ahandle
     type(ssm_rep_t), pointer :: b
@@ -369,7 +377,8 @@ contains
     if (c_associated(handle)) call c_f_pointer(handle, a)
   end function get_aug
 
-  integer(c_int) function ss_augmented_free(ahandle) bind(C, name="ss_augmented_free") result(info)
+  integer(c_int) function ss_augmented_free(ahandle) &
+    bind(C, name="ss_augmented_free") result(info)
     type(c_ptr), value :: ahandle
     type(augmented_box), pointer :: a
 
@@ -396,8 +405,8 @@ contains
   end function ss_augmented_info
 
   !> delta (1, k) or delta_cov (2, k x k).
-  integer(c_int) function ss_augmented_get(ahandle, code, out) bind(C, name="ss_augmented_get") &
-    result(info)
+  integer(c_int) function ss_augmented_get(ahandle, code, out) &
+    bind(C, name="ss_augmented_get") result(info)
     type(c_ptr), value :: ahandle, out
     integer(c_int), value :: code
     type(augmented_box), pointer :: a
@@ -453,7 +462,8 @@ contains
 
   !> EM for H and Q (DK 7.3.4), updating the representation in place. path
   !> (maxiter) receives the log likelihood of every iteration, or NULL.
-  integer(c_int) function ss_em(handle, maxiter, tol, diagonal_H, diagonal_Q, llf, niter, path) &
+  integer(c_int) function ss_em(handle, maxiter, tol, diagonal_H, diagonal_Q, llf, &
+                                niter, path) &
     bind(C, name="ss_em") result(info)
     type(c_ptr), value :: handle, path
     integer(c_int), value :: maxiter, diagonal_H, diagonal_Q
@@ -468,8 +478,9 @@ contains
     info = SS_ERR_DIM
     b => get_rep(handle)
     if (.not. associated(b) .or. maxiter < 1) return
-    call em_variances(b, int(maxiter), real(tol, dp), llf, it, stat, diagonal_H=diagonal_H /= 0, &
-                      diagonal_Q=diagonal_Q /= 0, llf_path=lp)
+    call em_variances(b, int(maxiter), real(tol, dp), llf, it, stat, &
+                      diagonal_H=diagonal_H /= 0, diagonal_Q=diagonal_Q /= 0, &
+                      llf_path=lp)
     niter = it
     info = stat
     if (c_associated(path) .and. allocated(lp)) then
@@ -486,8 +497,8 @@ contains
 
   !> Collapse the observations to the state dimension (DK 6.5): a new
   !> representation crhandle and the log likelihood adjustment (n).
-  integer(c_int) function ss_collapse(handle, crhandle, llf_adjust) bind(C, name="ss_collapse") &
-    result(info)
+  integer(c_int) function ss_collapse(handle, crhandle, llf_adjust) &
+    bind(C, name="ss_collapse") result(info)
     type(c_ptr), value :: handle, llf_adjust
     type(c_ptr), intent(out) :: crhandle
     type(ssm_rep_t), pointer :: b, cr
@@ -538,7 +549,8 @@ contains
 
   !> Auxiliary residuals (DK 7.5), element-wise (vector = 0) or standardized
   !> as vectors: eps_std (p, n), eta_std (r, n).
-  integer(c_int) function ss_auxiliary_residuals(handle, shandle, vector, eps_std, eta_std) &
+  integer(c_int) function ss_auxiliary_residuals(handle, shandle, vector, eps_std, &
+                                                 eta_std) &
     bind(C, name="ss_auxiliary_residuals") result(info)
     type(c_ptr), value :: handle, shandle, eps_std, eta_std
     integer(c_int), value :: vector
@@ -587,14 +599,16 @@ contains
 
     info = SS_ERR_DIM
     b => get_rep(handle)
-    if (.not. associated(b) .or. first < 1 .or. last < first .or. last > b%k_states) return
-    call least_squares_residuals(b, int(first), int(last), m2(vplus, b%k_endog, b%nobs), stat)
+    if (.not. associated(b) .or. first < 1 .or. last < first &
+        .or. last > b%k_states) return
+    call least_squares_residuals(b, int(first), int(last), &
+                                 m2(vplus, b%k_endog, b%nobs), stat)
     info = stat
   end function ss_least_squares_residuals
 
   !> R^2_D against a random walk with drift (Harvey 1989) for series i.
-  integer(c_int) function ss_r2_diffuse(handle, fhandle, i, r2) bind(C, name="ss_r2_diffuse") &
-    result(info)
+  integer(c_int) function ss_r2_diffuse(handle, fhandle, i, r2) &
+    bind(C, name="ss_r2_diffuse") result(info)
     type(c_ptr), value :: handle, fhandle
     integer(c_int), value :: i
     real(c_double), intent(out) :: r2
@@ -613,8 +627,8 @@ contains
   !> de Jong-Shephard simulation smoother (DK 4.9.3) from standard normal
   !> variates u_eps (p, n), u_eta (r, n), u_init (m): eps (p, n),
   !> eta (r, n), alpha (m, n).
-  integer(c_int) function ss_djs_simulation_smoother(handle, fhandle, u_eps, u_eta, u_init, eps, &
-                                                     eta, alpha) &
+  integer(c_int) function ss_djs_simulation_smoother(handle, fhandle, u_eps, u_eta, &
+                                                     u_init, eps, eta, alpha) &
     bind(C, name="ss_djs_simulation_smoother") result(info)
     type(c_ptr), value :: handle, fhandle, u_eps, u_eta, u_init, eps, eta, alpha
     type(ssm_rep_t), pointer :: b
@@ -633,7 +647,8 @@ contains
     end if
     call c_f_pointer(u_init, ui, [b%k_states])
     call djs_state_disturbances(b, f%res, m2(u_eta, b%k_posdef, b%nobs), ui, &
-                                m2(eta, b%k_posdef, b%nobs), m2(alpha, b%k_states, b%nobs), stat)
+                                m2(eta, b%k_posdef, b%nobs), &
+                                m2(alpha, b%k_states, b%nobs), stat)
     info = stat
   end function ss_djs_simulation_smoother
 
@@ -641,8 +656,9 @@ contains
   !> params (k) and cov_params (k, k) from a fit; ndraw draws (even when
   !> antithetic); seed > 0 seeds the random numbers. bias_alpha (m, n),
   !> bias_V (m, m, n) or NULL; failed receives the number of skipped draws.
-  integer(c_int) function ss_estimation_bias(mhandle, params, cov_params, ndraw, antithetic, &
-                                             seed, bias_alpha, bias_V, failed) &
+  integer(c_int) function ss_estimation_bias(mhandle, params, cov_params, ndraw, &
+                                             antithetic, seed, bias_alpha, bias_V, &
+                                             failed) &
     bind(C, name="ss_estimation_bias") result(info)
     type(c_ptr), value :: mhandle, params, cov_params, bias_alpha, bias_V
     integer(c_int), value :: ndraw, antithetic, seed
@@ -669,7 +685,8 @@ contains
     end if
     if (c_associated(bias_V)) then
       call estimation_bias(mb%model, fr, int(ndraw), m2(bias_alpha, m, n), stat, &
-                           bias_V=m3(bias_V, m, m, n), antithetic=antithetic /= 0, failed=nf)
+                           bias_V=m3(bias_V, m, m, n), antithetic=antithetic /= 0, &
+                           failed=nf)
     else
       call estimation_bias(mb%model, fr, int(ndraw), m2(bias_alpha, m, n), stat, &
                            antithetic=antithetic /= 0, failed=nf)

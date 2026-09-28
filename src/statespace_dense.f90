@@ -33,7 +33,8 @@ contains
     real(dp), intent(out), contiguous :: V(:, :, :)         !< (m, m, n)
     integer, intent(out) :: info
     real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), mu_a(:), Va(:, :), W(:, :)
-    real(dp), allocatable :: Zb(:, :), Omega(:, :), mu_y(:), yv(:), e(:), VZ(:, :), post(:, :)
+    real(dp), allocatable :: Zb(:, :), Omega(:, :), mu_y(:), yv(:), e(:), VZ(:, :), &
+                             post(:, :)
     integer, allocatable :: row_t(:), row_i(:)
     real(dp) :: logdet
     integer :: m, n, t, s, i, k, nobs_total, it, ir, iq, ic, iz, ih, id
@@ -62,13 +63,14 @@ contains
       do s = 1, t
         bs = (s - 1) * m
         ! Cov(alpha_t+1, alpha_s) = T Cov(alpha_t, alpha_s)
-        Va(bt + 1:bt + m, bs + 1:bs + m) = matmul(rep%T(:, :, it), Va(bt - m + 1:bt, bs + 1:bs + m))
+        Va(bt + 1:bt + m, bs + 1:bs + m) = matmul(rep%T(:, :, it), &
+                                                  Va(bt - m + 1:bt, bs + 1:bs + m))
         Va(bs + 1:bs + m, bt + 1:bt + m) = transpose(Va(bt + 1:bt + m, bs + 1:bs + m))
       end do
       W = matmul(rep%R(:, :, ir), matmul(rep%Q(:, :, iq), transpose(rep%R(:, :, ir))))
       Va(bt + 1:bt + m, bt + 1:bt + m) = matmul(rep%T(:, :, it), &
-                                                matmul(Va(bt - m + 1:bt, bt - m + 1:bt), &
-                                                       transpose(rep%T(:, :, it)))) + W
+                                                matmul(Va(bt - m + 1:bt, &
+          bt - m + 1:bt), transpose(rep%T(:, :, it)))) + W
     end do
 
     ! Observed elements of Y_n, and Z, mu, Omega over them.
@@ -85,7 +87,8 @@ contains
         row_t(k) = t
         row_i(k) = i
         Zb(k, (t - 1) * m + 1:t * m) = rep%Z(i, :, iz)
-        mu_y(k) = rep%d(i, id) + dot_product(rep%Z(i, :, iz), mu_a((t - 1) * m + 1:t * m))
+        mu_y(k) = rep%d(i, id) + dot_product(rep%Z(i, :, iz), &
+                                             mu_a((t - 1) * m + 1:t * m))
         yv(k) = rep%y(i, t)
       end do
     end do

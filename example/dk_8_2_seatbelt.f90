@@ -69,16 +69,18 @@ contains
 
     pn = mod%param_names()
     do i = 1, mod%k_params
-      print '(2x, a20, es14.6, a, f9.6, a)', trim(pn(i)), res%params(i), "   (q-ratio ", &
-        res%params(i) / res%params(1), ")"
+      print '(2x, a20, es14.6, a, f9.6, a)', trim(pn(i)), res%params(i), &
+          "   (q-ratio ", res%params(i) / res%params(1), ")"
     end do
     call mod%filter(res%params, fres, info)
-    print '(2x, a, f12.3, a, i0, a)', "log likelihood ", res%llf, "   (d = ", fres%nobs_diffuse, ")"
+    print '(2x, a, f12.3, a, i0, a)', "log likelihood ", res%llf, "   (d = ", &
+        fres%nobs_diffuse, ")"
     call prediction_error_variance(mod%rep, F, info)
     if (info == SS_OK) then
       print '(2x, a, f12.8)', "prediction error variance ", F(1, 1)
     else
-      print '(2x, a)', "prediction error variance: none (time-varying Z, no steady state)"
+      print '(2x, a)', &
+          "prediction error variance: none (time-varying Z, no steady state)"
     end if
   end subroutine report
 

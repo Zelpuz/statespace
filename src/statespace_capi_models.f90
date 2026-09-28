@@ -4,13 +4,13 @@
 !> statespace_capi. Model handles come from ss_struct_build (and the other
 !> model constructors) and are released with ss_model_free.
 module statespace_capi_models
-  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_char, c_null_ptr, c_loc, &
-                                         c_f_pointer, c_associated, c_null_char
+  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_char, c_null_ptr, &
+                                         c_loc, c_f_pointer, c_associated, c_null_char
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM, SS_ERR_NOT_PD, SS_ERR_UNSUPPORTED
   use statespace_rep, only: ssm_rep_t
   use statespace_model, only: ssm_model_t
-  use statespace_components, only: component_t, component_holder_t, structural_model_t, &
-                                   structural_model
+  use statespace_components, only: component_t, component_holder_t, &
+                                   structural_model_t, structural_model
   use statespace_structural, only: irregular_t, level_t, trend_t, seasonal_t, cycle_t, &
                                    regression_t, continuous_level_t, continuous_trend_t
   use statespace_arima, only: arima_t
@@ -44,8 +44,10 @@ module statespace_capi_models
   public :: ss_model_free, ss_model_info, ss_model_param_names, ss_model_start_params
   public :: ss_model_transform, ss_model_untransform, ss_model_loglike, ss_model_rep
   public :: ss_model_rep_at, ss_model_set_concentrate, ss_model_scale
-  public :: ss_model_fit, ss_fit_many, ss_fit_free, ss_fit_scalars, ss_fit_get, ss_fit_message
-  public :: ss_mapped_new, ss_mapped_entry, ss_mapped_block, ss_mapped_group, ss_mapped_start
+  public :: ss_model_fit, ss_fit_many, ss_fit_free, ss_fit_scalars, ss_fit_get, &
+            ss_fit_message
+  public :: ss_mapped_new, ss_mapped_entry, ss_mapped_block, ss_mapped_group, &
+            ss_mapped_start
   public :: ss_model_set_names, ss_callback_new, ss_model_failures, ss_model_components
 
 contains
@@ -61,8 +63,8 @@ contains
   end function get_builder
 
   !> Start a structural model for data y (p, n); add components, then build.
-  integer(c_int) function ss_struct_new(p, n, y, bhandle) bind(C, name="ss_struct_new") &
-    result(info)
+  integer(c_int) function ss_struct_new(p, n, y, bhandle) &
+    bind(C, name="ss_struct_new") result(info)
     integer(c_int), value :: p, n
     type(c_ptr), value :: y
     type(c_ptr), intent(out) :: bhandle
@@ -80,7 +82,8 @@ contains
     info = SS_OK
   end function ss_struct_new
 
-  integer(c_int) function ss_struct_free(bhandle) bind(C, name="ss_struct_free") result(info)
+  integer(c_int) function ss_struct_free(bhandle) &
+    bind(C, name="ss_struct_free") result(info)
     type(c_ptr), value :: bhandle
     type(builder_box), pointer :: b
 
@@ -176,8 +179,9 @@ contains
   end function ss_struct_add_seasonal
 
   !> Cycle; period_max <= 0 means the number of observations.
-  integer(c_int) function ss_struct_add_cycle(bhandle, cov, damped, period_min, period_max, &
-                                              at_obs) bind(C, name="ss_struct_add_cycle") result(info)
+  integer(c_int) function ss_struct_add_cycle(bhandle, cov, damped, period_min, &
+                                              period_max, at_obs) &
+    bind(C, name="ss_struct_add_cycle") result(info)
     type(c_ptr), value :: bhandle
     integer(c_int), value :: cov, damped, at_obs
     real(c_double), value :: period_min, period_max
@@ -187,14 +191,16 @@ contains
     info = SS_ERR_DIM
     b => get_builder(bhandle)
     if (.not. associated(b)) return
-    c = cycle_t(cov=cov, damped=damped /= 0, period_min=period_min, period_max=period_max)
+    c = cycle_t(cov=cov, damped=damped /= 0, period_min=period_min, &
+                period_max=period_max)
     call append(b, c, at_obs)
     info = SS_OK
   end function ss_struct_add_cycle
 
   !> Regression effects on series `series` (1-based): x (n, kx);
   !> random_walk (kx, 0/1) or NULL for fixed coefficients.
-  integer(c_int) function ss_struct_add_regression(bhandle, kx, x, random_walk, series, at_obs) &
+  integer(c_int) function ss_struct_add_regression(bhandle, kx, x, random_walk, &
+                                                   series, at_obs) &
     bind(C, name="ss_struct_add_regression") result(info)
     type(c_ptr), value :: bhandle, x, random_walk
     integer(c_int), value :: kx, series, at_obs
@@ -218,8 +224,9 @@ contains
   end function ss_struct_add_regression
 
   !> ARIMA(p, d, q)(P, D, Q)_s on series `series`.
-  integer(c_int) function ss_struct_add_arima(bhandle, ar, d, ma, sar, sd, sma, s, series, &
-                                              enforce_stationarity, enforce_invertibility, at_obs) &
+  integer(c_int) function ss_struct_add_arima(bhandle, ar, d, ma, sar, sd, sma, s, &
+                                              series, enforce_stationarity, &
+                                              enforce_invertibility, at_obs) &
     bind(C, name="ss_struct_add_arima") result(info)
     type(c_ptr), value :: bhandle
     integer(c_int), value :: ar, d, ma, sar, sd, sma, s, series, enforce_stationarity, &
@@ -264,7 +271,8 @@ contains
 
   !> Build the model. psig = 0 for no signal loadings; otherwise loading
   !> (p, psig) and loading_free (p, psig, 0/1, or NULL).
-  integer(c_int) function ss_struct_build(bhandle, psig, loading, loading_free, mhandle) &
+  integer(c_int) function ss_struct_build(bhandle, psig, loading, loading_free, &
+                                          mhandle) &
     bind(C, name="ss_struct_build") result(info)
     type(c_ptr), value :: bhandle, loading, loading_free
     integer(c_int), value :: psig
@@ -305,8 +313,8 @@ contains
 
   !> A mapped model (statespace_mapped) with k parameters over a copy of the
   !> representation rhandle (fixed entries and initialization).
-  integer(c_int) function ss_mapped_new(rhandle, k, mhandle) bind(C, name="ss_mapped_new") &
-    result(info)
+  integer(c_int) function ss_mapped_new(rhandle, k, mhandle) &
+    bind(C, name="ss_mapped_new") result(info)
     use statespace_capi, only: get_rep
     type(c_ptr), value :: rhandle
     integer(c_int), value :: k
@@ -407,14 +415,15 @@ contains
     info = SS_ERR_DIM
     mm => get_mapped(mhandle)
     if (.not. associated(mm)) return
-    if (first < 1 .or. last < first .or. last > mm%k_params .or. kind < 1 .or. kind > 4) return
+    if (first < 1 .or. last < first .or. last > mm%k_params .or. kind < 1 &
+        .or. kind > 4) return
     call mm%add_group(int(kind), int(first), int(last), real(lo, dp), real(hi, dp))
     info = SS_OK
   end function ss_mapped_group
 
   !> Start values (constrained) for a mapped or callback model.
-  integer(c_int) function ss_mapped_start(mhandle, start) bind(C, name="ss_mapped_start") &
-    result(info)
+  integer(c_int) function ss_mapped_start(mhandle, start) &
+    bind(C, name="ss_mapped_start") result(info)
     type(c_ptr), value :: mhandle, start
     type(model_box), pointer :: mb
     real(dp), pointer :: s(:)
@@ -457,8 +466,9 @@ contains
 
   !> A callback model (statespace_callback) with k parameters over a copy of
   !> the representation rhandle; transform_cb and untransform_cb may be NULL.
-  integer(c_int) function ss_callback_new(rhandle, k, update_cb, transform_cb, untransform_cb, &
-                                          mhandle) bind(C, name="ss_callback_new") result(info)
+  integer(c_int) function ss_callback_new(rhandle, k, update_cb, transform_cb, &
+                                          untransform_cb, mhandle) &
+    bind(C, name="ss_callback_new") result(info)
     use statespace_capi, only: get_rep
     type(c_ptr), value :: rhandle
     integer(c_int), value :: k
@@ -488,8 +498,8 @@ contains
   end function ss_callback_new
 
   !> Number of failed callbacks of a callback model (0 for other models).
-  integer(c_int) function ss_model_failures(mhandle, n) bind(C, name="ss_model_failures") &
-    result(info)
+  integer(c_int) function ss_model_failures(mhandle, n) &
+    bind(C, name="ss_model_failures") result(info)
     type(c_ptr), value :: mhandle
     integer(c_int), intent(out) :: n
     type(model_box), pointer :: mb
@@ -511,7 +521,8 @@ contains
   !> (0-based offset) and size, and whether it acts on the observations
   !> (1) or on the signals (0). ncomp receives the number of components; the
   !> arrays need room for maxcomp entries. Other models give ncomp = 0.
-  integer(c_int) function ss_model_components(mhandle, maxcomp, ncomp, first, size_, at_obs) &
+  integer(c_int) function ss_model_components(mhandle, maxcomp, ncomp, first, size_, &
+                                              at_obs) &
     bind(C, name="ss_model_components") result(info)
     type(c_ptr), value :: mhandle
     integer(c_int), value :: maxcomp
@@ -552,7 +563,8 @@ contains
     end if
   end function get_model
 
-  integer(c_int) function ss_model_free(mhandle) bind(C, name="ss_model_free") result(info)
+  integer(c_int) function ss_model_free(mhandle) &
+    bind(C, name="ss_model_free") result(info)
     type(c_ptr), value :: mhandle
     type(model_box), pointer :: mb
 
@@ -629,15 +641,16 @@ contains
   end function ss_model_start_params
 
   !> Unconstrained x -> constrained params.
-  integer(c_int) function ss_model_transform(mhandle, x, out) bind(C, name="ss_model_transform") &
-    result(info)
+  integer(c_int) function ss_model_transform(mhandle, x, out) &
+    bind(C, name="ss_model_transform") result(info)
     type(c_ptr), value :: mhandle, x, out
     type(model_box), pointer :: mb
     real(dp), pointer :: xi(:), o(:)
 
     info = SS_ERR_DIM
     mb => get_model(mhandle)
-    if (.not. associated(mb) .or. .not. c_associated(x) .or. .not. c_associated(out)) return
+    if (.not. associated(mb) .or. .not. c_associated(x) &
+        .or. .not. c_associated(out)) return
     call c_f_pointer(x, xi, [mb%model%k_params])
     call c_f_pointer(out, o, [mb%model%k_params])
     o = mb%model%transform_params(xi)
@@ -653,7 +666,8 @@ contains
 
     info = SS_ERR_DIM
     mb => get_model(mhandle)
-    if (.not. associated(mb) .or. .not. c_associated(params) .or. .not. c_associated(out)) return
+    if (.not. associated(mb) .or. .not. c_associated(params) &
+        .or. .not. c_associated(out)) return
     call c_f_pointer(params, pi, [mb%model%k_params])
     call c_f_pointer(out, o, [mb%model%k_params])
     o = mb%model%untransform_params(pi)
@@ -661,8 +675,8 @@ contains
   end function ss_model_untransform
 
   !> Log likelihood at constrained params (the model is left at them).
-  integer(c_int) function ss_model_loglike(mhandle, params, llf) bind(C, name="ss_model_loglike") &
-    result(info)
+  integer(c_int) function ss_model_loglike(mhandle, params, llf) &
+    bind(C, name="ss_model_loglike") result(info)
     type(c_ptr), value :: mhandle, params
     real(c_double), intent(out) :: llf
     type(model_box), pointer :: mb
@@ -680,7 +694,8 @@ contains
 
   !> A handle to the model's own representation (borrowed: do not free it;
   !> valid while the model exists). Use it to set filter options.
-  integer(c_int) function ss_model_rep(mhandle, rhandle) bind(C, name="ss_model_rep") result(info)
+  integer(c_int) function ss_model_rep(mhandle, rhandle) &
+    bind(C, name="ss_model_rep") result(info)
     type(c_ptr), value :: mhandle
     type(c_ptr), intent(out) :: rhandle
     type(model_box), pointer :: mb
@@ -733,8 +748,8 @@ contains
   end function ss_model_set_concentrate
 
   !> The concentrated scale at the last log likelihood evaluation.
-  integer(c_int) function ss_model_scale(mhandle, scale) bind(C, name="ss_model_scale") &
-    result(info)
+  integer(c_int) function ss_model_scale(mhandle, scale) &
+    bind(C, name="ss_model_scale") result(info)
     type(c_ptr), value :: mhandle
     real(c_double), intent(out) :: scale
     type(model_box), pointer :: mb
@@ -765,8 +780,9 @@ contains
   !> starting point or NULL. fhandle receives the result whenever the
   !> estimates exist (also with SS_ERR_NOT_PD: no covariance); free it with
   !> ss_fit_free.
-  integer(c_int) function ss_model_fit(mhandle, start, maxiter, m, factr, pgtol, compute_cov, &
-                                       gradient, fhandle) bind(C, name="ss_model_fit") result(info)
+  integer(c_int) function ss_model_fit(mhandle, start, maxiter, m, factr, pgtol, &
+                                       compute_cov, gradient, fhandle) &
+    bind(C, name="ss_model_fit") result(info)
     type(c_ptr), value :: mhandle, start
     integer(c_int), value :: maxiter, m, compute_cov, gradient
     real(c_double), value :: factr, pgtol
@@ -784,10 +800,11 @@ contains
     if (c_associated(start)) then
       call c_f_pointer(start, s, [mb%model%k_params])
       call fit(mb%model, fb%res, start_params=s, &
-               options=options(maxiter, m, factr, pgtol, compute_cov, gradient), info=stat)
-    else
-      call fit(mb%model, fb%res, options=options(maxiter, m, factr, pgtol, compute_cov, gradient), &
+               options=options(maxiter, m, factr, pgtol, compute_cov, gradient), &
                info=stat)
+    else
+      call fit(mb%model, fb%res, options=options(maxiter, m, factr, pgtol, &
+                                                 compute_cov, gradient), info=stat)
     end if
     info = stat
     fb%info = stat
@@ -801,9 +818,9 @@ contains
   !> Fit nm models (handles in mhandles) in parallel with OpenMP. Results go
   !> to fhandles and status codes to infos, as for ss_model_fit. Returns
   !> SS_OK if every handle was valid.
-  integer(c_int) function ss_fit_many(nm, mhandles, maxiter, m, factr, pgtol, compute_cov, &
-                                      gradient, fhandles, infos) bind(C, name="ss_fit_many") &
-    result(info)
+  integer(c_int) function ss_fit_many(nm, mhandles, maxiter, m, factr, pgtol, &
+                                      compute_cov, gradient, fhandles, infos) &
+    bind(C, name="ss_fit_many") result(info)
     integer(c_int), value :: nm, maxiter, m, compute_cov, gradient
     real(c_double), value :: factr, pgtol
     type(c_ptr), intent(in) :: mhandles(nm)
@@ -873,8 +890,8 @@ contains
   end function ss_fit_free
 
   !> Scalars of a fit; has_cov = 1 when cov_params and bse are available.
-  integer(c_int) function ss_fit_scalars(fhandle, llf, scale, aic, bic, niter, nfev, converged, &
-                                         analytic_gradient, has_cov) &
+  integer(c_int) function ss_fit_scalars(fhandle, llf, scale, aic, bic, niter, nfev, &
+                                         converged, analytic_gradient, has_cov) &
     bind(C, name="ss_fit_scalars") result(info)
     type(c_ptr), value :: fhandle
     real(c_double), intent(out) :: llf, scale, aic, bic
@@ -893,7 +910,8 @@ contains
   end function ss_fit_scalars
 
   !> Copy params (1), bse (2) or cov_params (3, k x k) into out.
-  integer(c_int) function ss_fit_get(fhandle, code, out) bind(C, name="ss_fit_get") result(info)
+  integer(c_int) function ss_fit_get(fhandle, code, out) &
+    bind(C, name="ss_fit_get") result(info)
     type(c_ptr), value :: fhandle, out
     integer(c_int), value :: code
     type(fit_box), pointer :: fb
@@ -920,8 +938,8 @@ contains
   end function ss_fit_get
 
   !> The optimizer's final message, NUL-terminated, into buf(len).
-  integer(c_int) function ss_fit_message(fhandle, len, buf) bind(C, name="ss_fit_message") &
-    result(info)
+  integer(c_int) function ss_fit_message(fhandle, len, buf) &
+    bind(C, name="ss_fit_message") result(info)
     type(c_ptr), value :: fhandle
     integer(c_int), value :: len
     character(kind=c_char), intent(out) :: buf(len)

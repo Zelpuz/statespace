@@ -3,7 +3,6 @@ python/src/ssfortran): numpy and ssfortran are available as np and ss."""
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
 
 

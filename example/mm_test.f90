@@ -13,12 +13,12 @@ program intrinsic_matmul
     ! Initialize sample matrices
     A = reshape([1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3.0, 6.0, 9.0], [M, N])
     B = reshape([9.0, 7.0, -1.0, 8.0, 6.0, -2.3], [N, P])
-    
+
     write(*, *) "Matrix A"
     write(*, "(*(g0))") ((A(i,j), " ", j=1, N), new_line("A"), i=1, M)
     write(*, *) "Matrix B"
     write(*, "(*(g0))") ((B(i,j), " ", j=1, P), new_line("A"), i=1, N)
-    
+
     ! Matrix Multiplication
     C = matmul(A, B)
 

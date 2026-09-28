@@ -99,7 +99,8 @@ program nile_mle
 
   names = mod%param_names()
   print '(a)', trim(res%message)
-  print '(a, i0, a, i0)', "iterations: ", res%niter, "  likelihood evaluations: ", res%nfev
+  print '(a, i0, a, i0)', "iterations: ", res%niter, "  likelihood evaluations: ", &
+      res%nfev
   print '(a, f14.6)', "log likelihood: ", res%llf
   print '(a, f10.4, a, f10.4)', "AIC: ", res%aic, "  BIC: ", res%bic
   print '(a20, 2a14)', "", "estimate", "std err"

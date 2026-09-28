@@ -3,17 +3,24 @@
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
-
 from _fixtures import close, read_fixture, rep_from_fixture
-
 
 # statsmodels' smoother is wrong in the diffuse period of the time-varying
 # diffuse fixture (docs/statsmodels_differences.md), so it is left out.
-CASES = ["nile_llevel_known", "nile_llevel_exact", "nile_llevel_missing", "nile_lltrend_exact",
-         "mv_invariant", "mv_timevarying", "mv_missing", "mv_stationary", "mv_diffuse",
-         "uc_trend_seasonal_exact", "uc_level_ar1_mixed"]
+CASES = [
+    "nile_llevel_known",
+    "nile_llevel_exact",
+    "nile_llevel_missing",
+    "nile_lltrend_exact",
+    "mv_invariant",
+    "mv_timevarying",
+    "mv_missing",
+    "mv_stationary",
+    "mv_diffuse",
+    "uc_trend_seasonal_exact",
+    "uc_level_ar1_mixed",
+]
 
 
 @pytest.mark.parametrize("name", CASES)
@@ -55,8 +62,6 @@ def test_options_and_errors():
     bad["state_cov"] = [[1.0]]
     bad["obs_cov"] = [[1.0]]
     with pytest.raises(ss.StateSpaceError) as e:
-        bad.initialize_stationary()   # a unit root has no stationary distribution
+        bad.initialize_stationary()  # a unit root has no stationary distribution
         bad.loglike()
     assert e.value.code == 6
-
-

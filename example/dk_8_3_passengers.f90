@@ -87,7 +87,8 @@ contains
       ! One common level theta_t, on which the rear seat series loads with a
       ! free loading (DK 3.3.2)
       comps(2)%c = level_t()
-      comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG, cov=COV_NONE, at_observations=.true.)
+      comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG, cov=COV_NONE, &
+                              at_observations=.true.)
     else
       comps(2)%c = level_t(cov=COV_FULL)
       comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG, cov=COV_NONE)
@@ -98,11 +99,12 @@ contains
       if (.not. (law(i) .or. (rank_one .and. i == 2))) cycle
       j = j + 1
       ireg(i) = j
-      comps(j)%c = regression_t(x=regressors(n, law(i), rank_one .and. i == 2), series=i, &
-                                at_observations=rank_one)
+      comps(j)%c = regression_t(x=regressors(n, law(i), rank_one .and. i == 2), &
+                                series=i, at_observations=rank_one)
     end do
     if (rank_one) then
-      mod = structural_model(y(:, 1:n), comps, info, loading=reshape([1.0_dp, 1.0_dp], [2, 1]), &
+      mod = structural_model(y(:, 1:n), comps, info, &
+                             loading=reshape([1.0_dp, 1.0_dp], [2, 1]), &
                              loading_free=reshape([.false., .true.], [2, 1]))
     else
       mod = structural_model(y(:, 1:n), comps, info)
@@ -122,10 +124,12 @@ contains
     else
       Seta = full_cov(res%params(4:6))
     end if
-    print '(2x, a, 3f8.3, a, f6.3)', "Sigma_eps x 1e3: ", 1.0e3_dp * [Seps(1, 1), Seps(2, 1), Seps(2, 2)], &
-      "   rho ", Seps(2, 1) / sqrt(Seps(1, 1) * Seps(2, 2))
-    print '(2x, a, 3f8.3, a, f6.3)', "Sigma_eta x 1e4: ", 1.0e4_dp * [Seta(1, 1), Seta(2, 1), Seta(2, 2)], &
-      "   rho ", Seta(2, 1) / sqrt(Seta(1, 1) * Seta(2, 2))
+    print '(2x, a, 3f8.3, a, f6.3)', "Sigma_eps x 1e3: ", &
+        1.0e3_dp * [Seps(1, 1), Seps(2, 1), Seps(2, 2)], "   rho ", &
+        Seps(2, 1) / sqrt(Seps(1, 1) * Seps(2, 2))
+    print '(2x, a, 3f8.3, a, f6.3)', "Sigma_eta x 1e4: ", &
+        1.0e4_dp * [Seta(1, 1), Seta(2, 1), Seta(2, 2)], "   rho ", &
+        Seta(2, 1) / sqrt(Seta(1, 1) * Seta(2, 2))
     print '(2x, a, f12.3)', "log likelihood ", llf
 
     if (.not. any(law)) return
@@ -147,7 +151,9 @@ contains
 
     allocate (x(n, 0))
     if (intercept) x = reshape([spread(1.0_dp, 1, n)], [n, 1])
-    if (law) x = reshape([pack(x, .true.), step_intervention(n, t_law)], [n, size(x, 2) + 1])
+    if (law) then
+      x = reshape([pack(x, .true.), step_intervention(n, t_law)], [n, size(x, 2) + 1])
+    end if
   end function regressors
 
   !> A 2 x 2 covariance from its lower triangle (s11, s21, s22).

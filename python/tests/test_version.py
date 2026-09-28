@@ -16,7 +16,12 @@ def source_version():
 def test_versions_agree():
     v = source_version()
     assert ss.__version__ == v
-    assert re.search(r'^version = "([^"]+)"', (ROOT / "fpm.toml").read_text(), re.M).group(1) == v
+    assert (
+        re.search(r'^version = "([^"]+)"', (ROOT / "fpm.toml").read_text(), re.M).group(
+            1
+        )
+        == v
+    )
     cmake = (ROOT / "CMakeLists.txt").read_text()
     assert re.search(r"project\(statespace VERSION ([0-9.]+)", cmake).group(1) == v
     conf = (ROOT / "docs" / "conf.py").read_text()

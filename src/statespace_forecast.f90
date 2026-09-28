@@ -60,8 +60,10 @@ contains
       if (j > 1) then
         ! a_j = c + T a_j-1,  P_j = T P_j-1 T' + R Q R'
         fc%state(:, j) = rep%c(:, 1)
-        call gemv('N', 1.0_dp, rep%T(:, :, 1), fc%state(:, j - 1), 1.0_dp, fc%state(:, j))
-        call gemm('N', 'N', 1.0_dp, rep%T(:, :, 1), fc%state_cov(:, :, j - 1), 0.0_dp, TP)
+        call gemv('N', 1.0_dp, rep%T(:, :, 1), fc%state(:, j - 1), 1.0_dp, &
+                  fc%state(:, j))
+        call gemm('N', 'N', 1.0_dp, rep%T(:, :, 1), fc%state_cov(:, :, j - 1), 0.0_dp, &
+                  TP)
         fc%state_cov(:, :, j) = RQR
         call gemm('N', 'T', 1.0_dp, TP, rep%T(:, :, 1), 1.0_dp, fc%state_cov(:, :, j))
         call symmetrize(fc%state_cov(:, :, j))

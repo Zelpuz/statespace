@@ -73,8 +73,11 @@ smoothed = res.smooth().smoothed_state
 
 # Matrix-level: fill the system matrices yourself
 rep = ss.Representation(y, k_states=1)
-rep["design"] = [[1.0]]; rep["transition"] = [[1.0]]; rep["selection"] = [[1.0]]
-rep["obs_cov"] = [[15099.0]]; rep["state_cov"] = [[1469.1]]
+rep["design"] = [[1.0]]
+rep["transition"] = [[1.0]]
+rep["selection"] = [[1.0]]
+rep["obs_cov"] = [[15099.0]]
+rep["state_cov"] = [[1469.1]]
 rep.initialize_diffuse()
 print(rep.loglike())
 ```
@@ -110,6 +113,11 @@ installing:
 cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake
 pytest            # uses python/src and build/cmake (pyproject.toml)
 ```
+
+Code is formatted to 88 columns. `ruff format` and `ruff check` cover the Python
+(settings in `pyproject.toml`); [Fortitude](https://fortitude.readthedocs.io)'s
+`fortitude check` covers the Fortran (settings in `fpm.toml`), whose long lines are
+wrapped by hand.
 
 ## License
 

@@ -72,7 +72,8 @@ contains
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-9_dp, "llf_obs")
     if (allocated(error)) return
     ! Same state layout as SARIMAX (DK 3.4)
-    call check_rel(error, pack(sres%alphahat, .true.), fx%get1('alphahat'), 1.0e-8_dp, "alphahat")
+    call check_rel(error, pack(sres%alphahat, .true.), fx%get1('alphahat'), 1.0e-8_dp, &
+                   "alphahat")
   end subroutine check_arima
 
   subroutine test_201(error)
@@ -119,7 +120,8 @@ contains
     if (allocated(error)) return
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-9_dp, "llf_obs")
     if (allocated(error)) return
-    call check_rel(error, sres%alphahat(1:2, mod%rep%nobs), fx%get1('beta'), 1.0e-9_dp, "beta")
+    call check_rel(error, sres%alphahat(1:2, mod%rep%nobs), fx%get1('beta'), &
+                   1.0e-9_dp, "beta")
   end subroutine test_regression
 
   subroutine test_fit(error)
@@ -161,9 +163,11 @@ contains
     call mod%filter([s2, qx * s2, qz * s2], fres, info)
     call check(error, fres%nobs_diffuse, 2, "d = 2")
     if (allocated(error)) return
-    call check_rel(error, fres%a(:, 3), [2 * y(1, 2) - y(1, 1), y(1, 2) - y(1, 1)], 1.0e-12_dp, "a_3")
+    call check_rel(error, fres%a(:, 3), [2 * y(1, 2) - y(1, 1), y(1, 2) - y(1, 1)], &
+                   1.0e-12_dp, "a_3")
     if (allocated(error)) return
-    call check_rel(error, fres%P(:, 1, 3), s2 * [5 + 2 * qx + qz, 3 + qx + qz], 1.0e-12_dp, "P_star,3")
+    call check_rel(error, fres%P(:, 1, 3), s2 * [5 + 2 * qx + qz, 3 + qx + qz], &
+                   1.0e-12_dp, "P_star,3")
     if (allocated(error)) return
     call check(error, all(fres%Pinf(:, :, 3) == 0.0_dp), "P_inf,3 = 0")
   end subroutine test_dk_561
@@ -184,8 +188,8 @@ contains
     mod = structural_model(y, comps, info)
     call mod%filter([phi, theta, 1.0_dp], fres, info)
     call check_rel(error, pack(fres%P(:, :, 1), .true.), &
-                   [(1 + theta**2 + 2 * phi * theta) / (1 - phi**2), theta, theta, theta**2], &
-                   1.0e-12_dp, "Q0")
+                   [(1 + theta**2 + 2 * phi * theta) / (1 - phi**2), theta, theta, &
+                    theta**2], 1.0e-12_dp, "Q0")
   end subroutine test_dk_562
 
   !> DK 5.6.4: AR(1) with a constant, alpha = (mu, xi)'. After one step,
@@ -210,7 +214,8 @@ contains
     call check_rel(error, fres%a(:, 2), [y(1, 1), 0.0_dp], 1.0e-12_dp, "a_2")
     if (allocated(error)) return
     call check_rel(error, pack(fres%P(:, :, 2), .true.), &
-                   s2 / (1 - phi**2) * [1.0_dp, -phi, -phi, 1.0_dp], 1.0e-12_dp, "P_star,2")
+                   s2 / (1 - phi**2) * [1.0_dp, -phi, -phi, 1.0_dp], 1.0e-12_dp, &
+                   "P_star,2")
     if (allocated(error)) return
     call check(error, all(fres%Pinf(:, :, 2) == 0.0_dp), "P_inf,2 = 0")
   end subroutine test_dk_564

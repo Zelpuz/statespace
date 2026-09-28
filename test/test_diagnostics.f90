@@ -17,20 +17,21 @@ contains
   subroutine collect_diagnostics(testsuite)
     type(unittest_type), allocatable, intent(out) :: testsuite(:)
 
-    testsuite = [ &
-                new_unittest("special_functions", test_special), &
-                new_unittest("nile_residual_tests", test_nile), &
-                new_unittest("multivariate_standardized_residuals", test_mv), &
-                new_unittest("auxiliary_residuals", test_auxiliary), &
-                new_unittest("r2_diffuse", test_r2), &
-                new_unittest("de_jong_penzer", test_djp), &
-                new_unittest("vector_auxiliary_residuals", test_vector_aux), &
-                new_unittest("likelihood_fixed_unknown_initial", test_llf_fixed), &
-                new_unittest("marginal_ar1_constant", test_marginal_ar1), &
-                new_unittest("marginal_common_trend_invariance", test_marginal_common_trend), &
-                new_unittest("marginal_augmented_matches_exact", test_marginal_augmented), &
-                new_unittest("recursive_and_least_squares_residuals", test_ls_residuals) &
-                ]
+    testsuite = [ new_unittest("special_functions", test_special), &
+                 new_unittest("nile_residual_tests", test_nile), &
+                 new_unittest("multivariate_standardized_residuals", test_mv), &
+                 new_unittest("auxiliary_residuals", test_auxiliary), &
+                 new_unittest("r2_diffuse", test_r2), &
+                 new_unittest("de_jong_penzer", test_djp), &
+                 new_unittest("vector_auxiliary_residuals", test_vector_aux), &
+                 new_unittest("likelihood_fixed_unknown_initial", test_llf_fixed), &
+                 new_unittest("marginal_ar1_constant", test_marginal_ar1), &
+                 new_unittest("marginal_common_trend_invariance", &
+                              test_marginal_common_trend), &
+                 new_unittest("marginal_augmented_matches_exact", &
+                              test_marginal_augmented), &
+                 new_unittest("recursive_and_least_squares_residuals", &
+                              test_ls_residuals) ]
   end subroutine collect_diagnostics
 
   subroutine check_rel(error, actual, expected, tol, label)
@@ -52,11 +53,12 @@ contains
 
     fx = load_fixture("test/fixtures/diagnostics.txt")
     x = fx%get1('chi2_sf_in')
-    call check_rel(error, [chi2_sf(x(1), x(2)), chi2_sf(x(3), x(4))], fx%get1('chi2_sf_out'), &
-                   1.0e-12_dp, "chi2 survival")
+    call check_rel(error, [chi2_sf(x(1), x(2)), chi2_sf(x(3), x(4))], &
+                   fx%get1('chi2_sf_out'), 1.0e-12_dp, "chi2 survival")
     if (allocated(error)) return
     x = fx%get1('f_cdf_in')
-    call check_rel(error, [f_cdf(x(1), x(2), x(3))], fx%get1('f_cdf_out'), 1.0e-12_dp, "F cdf")
+    call check_rel(error, [f_cdf(x(1), x(2), x(3))], fx%get1('f_cdf_out'), 1.0e-12_dp, &
+                   "F cdf")
   end subroutine test_special
 
   !> Nile local level at DK's parameters, exact diffuse: statsmodels' tests on
@@ -82,7 +84,8 @@ contains
     call check(error, ieee_is_nan(e(1, 1)), "NaN in the diffuse period")
     if (allocated(error)) return
     expected = dx%get2('std_err')
-    call check_rel(error, e(1, d:), expected(1, d:), 1.0e-9_dp, "standardized residuals")
+    call check_rel(error, e(1, d:), expected(1, d:), 1.0e-9_dp, &
+                   "standardized residuals")
     if (allocated(error)) return
 
     call ljung_box(e(1, d:), lb, lbp)
@@ -91,10 +94,12 @@ contains
     call check_rel(error, lbp, dx%get1('lb_pvalue'), 1.0e-9_dp, "Ljung-Box p-values")
     if (allocated(error)) return
     call jarque_bera(e(1, d:), jb, jbp, skew, kurt)
-    call check_rel(error, [jb, jbp, skew, kurt], dx%get1('jb'), 1.0e-9_dp, "Jarque-Bera")
+    call check_rel(error, [jb, jbp, skew, kurt], dx%get1('jb'), 1.0e-9_dp, &
+                   "Jarque-Bera")
     if (allocated(error)) return
     call breakvar_test(e(1, d:), hstat, hp)
-    call check_rel(error, [hstat, hp], dx%get1('het'), 1.0e-9_dp, "heteroskedasticity H(h)")
+    call check_rel(error, [hstat, hp], dx%get1('het'), 1.0e-9_dp, &
+                   "heteroskedasticity H(h)")
   end subroutine test_nile
 
   !> p = 3, correlated H, partly missing: e_t = L^-1 v_t over the observed
@@ -115,10 +120,12 @@ contains
     allocate (e(rep%k_endog, rep%nobs))
     call standardized_residuals(fres, e)
     obs = .not. ieee_is_nan(rep%y)
-    call check(error, all(ieee_is_nan(e) .eqv. .not. obs), "NaN exactly at missing elements")
+    call check(error, all(ieee_is_nan(e) .eqv. .not. obs), &
+               "NaN exactly at missing elements")
     if (allocated(error)) return
     expected = dx%get2('mv_std_err')
-    call check_rel(error, pack(e, obs), pack(expected, obs), 1.0e-9_dp, "standardized residuals")
+    call check_rel(error, pack(e, obs), pack(expected, obs), 1.0e-9_dp, &
+                   "standardized residuals")
   end subroutine test_mv
 
   !> Auxiliary residuals equal DK's u_t / sqrt(D_t) and
@@ -170,7 +177,8 @@ contains
     sse = sum(fres%v(1, 2:)**2)
     dy = rep%y(1, 2:) - rep%y(1, :n - 1)
     sst = sum((dy - sum(dy) / (n - 1))**2)
-    call check_rel(error, [r2_diffuse(rep, fres)], [1.0_dp - sse / sst], 1.0e-12_dp, "R2_D")
+    call check_rel(error, [r2_diffuse(rep, fres)], [1.0_dp - sse / sst], 1.0e-12_dp, &
+                   "R2_D")
   end subroutine test_r2
   !> For the local level model the de Jong-Penzer statistics are the
   !> auxiliary residuals: u/sqrt(D) and r/sqrt(N) (DK 7.5).
@@ -193,7 +201,8 @@ contains
     call de_jong_penzer(rep, fres, sres, r_stat, e_stat)
     call check_rel(error, e_stat(1, :), eps_std(1, :), 1.0e-9_dp, "e / sqrt(D)")
     if (allocated(error)) return
-    call check_rel(error, r_stat(1, :n - 1), eta_std(1, :n - 1), 1.0e-9_dp, "r / sqrt(N)")
+    call check_rel(error, r_stat(1, :n - 1), eta_std(1, :n - 1), 1.0e-9_dp, &
+                   "r / sqrt(N)")
   end subroutine test_djp
 
   !> Vector-standardized auxiliary residuals: |B epshat|^2 = epshat' Var^-1 epshat,
@@ -218,8 +227,8 @@ contains
       Vinv = rep%H(:, :, 1) - sres%epsvar(:, :, t)
       call chol_inv(Vinv, logdet, info)
       call check_rel(error, [sum(ev(:, t)**2)], &
-                     [dot_product(sres%epshat(:, t), matmul(Vinv, sres%epshat(:, t)))], 1.0e-9_dp, &
-                     "quadratic form")
+                     [dot_product(sres%epshat(:, t), matmul(Vinv, &
+          sres%epshat(:, t)))], 1.0e-9_dp, "quadratic form")
       if (allocated(error)) return
     end do
 
@@ -258,8 +267,10 @@ contains
       allocate (a1(m), Pstar(m, m), Pinf(m, m))
       call rep%initial_state(a1, Pstar, Pinf, info)
       fixed = rep
-      call fixed%initialize_general(a1 + matmul(ares%A(:, :, 1), ares%delta), Pstar, 0.0_dp * Pinf)
-      call check_rel(error, [ares%llf_fixed], [loglike(fixed, info)], 1.0e-9_dp, trim(paths(k)))
+      call fixed%initialize_general(a1 + matmul(ares%A(:, :, 1), ares%delta), Pstar, &
+                                    0.0_dp * Pinf)
+      call check_rel(error, [ares%llf_fixed], [loglike(fixed, info)], 1.0e-9_dp, &
+                     trim(paths(k)))
       if (allocated(error)) return
       deallocate (a1, Pstar, Pinf)
     end do
@@ -301,9 +312,11 @@ contains
       diff%R(:, 1, 1) = [1.0_dp, 1.0_dp]
       diff%Q = s2
       call diff%initialize_known([0.0_dp, 0.0_dp], &
-                                 s2 * reshape([2.0_dp / (1.0_dp + rho), 1.0_dp, 1.0_dp, 1.0_dp], [2, 2]))
+                                 s2 * reshape([2.0_dp / (1.0_dp + rho), 1.0_dp, &
+                                               1.0_dp, 1.0_dp], [2, 2]))
       ld = loglike(diff, info)
-      call check_rel(error, [lm], [ld + 0.5_dp * log(real(n, dp))], 1.0e-10_dp, "marginal = Delta y")
+      call check_rel(error, [lm], [ld + 0.5_dp * log(real(n, dp))], 1.0e-10_dp, &
+                     "marginal = Delta y")
       if (allocated(error)) return
     end do
   end subroutine test_marginal_ar1
@@ -344,7 +357,8 @@ contains
       dm(k) = loglike(ra, info) - loglike(rb, info)
     end do
     write (buf, '(4es12.4)') dm, dd
-    call check(error, abs(dm(1) - dm(2)) < 1.0e-9_dp .and. abs(dd(1) - dd(2)) > 1.0e-3_dp, &
+    call check(error, abs(dm(1) - dm(2)) < 1.0e-9_dp &
+               .and. abs(dd(1) - dd(2)) > 1.0e-3_dp, &
                "marginal (A - B) and diffuse (A - B) at two kappas: "//trim(buf))
   end subroutine test_marginal_common_trend
 
@@ -359,7 +373,8 @@ contains
     rep = rep_from_fixture(fx)
     call augmented_filter(rep, ares, info)
     rep%marginal_likelihood = .true.
-    call check_rel(error, [ares%llf_marginal], [loglike(rep, info)], 1.0e-9_dp, "llf_marginal")
+    call check_rel(error, [ares%llf_marginal], [loglike(rep, info)], 1.0e-9_dp, &
+                   "llf_marginal")
   end subroutine test_marginal_augmented
   !> DK 6.2.4 for a pure regression y_t = x_t' beta + eps_t: the recursive
   !> residuals are y_t - x_t' beta_hat_t-1 (OLS on y_1..y_t-1) and the least
@@ -389,7 +404,8 @@ contains
       call solve(XtX, beta, info)
       rec(t) = y(1, t) - dot_product(x(t, :), beta(:, 1))
     end do
-    call check_rel(error, fres%v(1, k + 1:), rec(k + 1:), 1.0e-9_dp, "recursive residuals")
+    call check_rel(error, fres%v(1, k + 1:), rec(k + 1:), 1.0e-9_dp, &
+                   "recursive residuals")
     if (allocated(error)) return
 
     call least_squares_residuals(rep, 1, k, vplus, info)

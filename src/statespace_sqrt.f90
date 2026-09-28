@@ -38,7 +38,8 @@ contains
     type(filter_result_t), intent(out) :: res
     integer, intent(out) :: info
     real(dp), allocatable, intent(out), optional :: Pchol(:, :, :)   !< (m, m, n+1)
-    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), Ps(:, :, :), Hs(:, :), Qs(:, :)
+    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), Ps(:, :, :), Hs(:, :), &
+                             Qs(:, :)
     real(dp), allocatable :: U(:, :), L(:, :), Zo(:, :), Fs(:, :), Kt(:, :), Finv(:, :)
     real(dp), allocatable :: vo(:), Fv(:), PZt(:, :)
     integer, allocatable :: idx(:)
@@ -56,11 +57,12 @@ contains
     info = SS_OK
 
     res%k_endog = p; res%k_states = m; res%nobs = n
-    allocate (res%a(m, n + 1), res%P(m, m, n + 1), res%Pinf(m, m, n + 1), res%att(m, n), &
-              res%Ptt(m, m, n), res%yhat(p, n), res%v(p, n), res%F(p, p, n), res%Finf(p, p, n), &
-              res%Finv(p, p, n), res%K(m, p, n), res%llf_obs(n), res%method(n), &
-              res%uv_n(n), res%uv_idx(p, 0), res%uv_Z(p, m, 0), res%uv_sig2(p, 0), &
-              res%uv_v(p, 0), res%uv_Fstar(p, 0), res%uv_Finf(p, 0), res%uv_Mstar(m, p, 0), &
+    allocate (res%a(m, n + 1), res%P(m, m, n + 1), res%Pinf(m, m, n + 1), &
+              res%att(m, n), res%Ptt(m, m, n), res%yhat(p, n), res%v(p, n), &
+              res%F(p, p, n), res%Finf(p, p, n), res%Finv(p, p, n), res%K(m, p, n), &
+              res%llf_obs(n), res%method(n), res%uv_n(n), res%uv_idx(p, 0), &
+              res%uv_Z(p, m, 0), res%uv_sig2(p, 0), res%uv_v(p, 0), &
+              res%uv_Fstar(p, 0), res%uv_Finf(p, 0), res%uv_Mstar(m, p, 0), &
               res%uv_Minf(m, p, 0))
     res%Pinf = 0.0_dp
     res%Finf = 0.0_dp
@@ -144,7 +146,8 @@ contains
     type(filter_result_t), intent(in) :: fres
     type(smoother_result_t), intent(out) :: sres
     integer, intent(out) :: info
-    real(dp), allocatable :: Ns(:, :), U(:, :), Lt(:, :), Zo(:, :), Fchol(:, :), PN(:, :)
+    real(dp), allocatable :: Ns(:, :), U(:, :), Lt(:, :), Zo(:, :), Fchol(:, :), &
+                             PN(:, :)
     integer, allocatable :: idx(:)
     integer :: m, n, t, i, n_o, iz, it
 

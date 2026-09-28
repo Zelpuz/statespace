@@ -10,16 +10,17 @@
 !>   * Every routine returns the status code (SS_OK = 0, see statespace_kinds).
 !>   * Missing observations are NaN in y.
 module statespace_capi
-  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_char, c_null_ptr, c_loc, &
-                                         c_f_pointer, c_associated, c_null_char
+  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_ptr, c_char, c_null_ptr, &
+                                         c_loc, c_f_pointer, c_associated, c_null_char
   use statespace_kinds, only: dp, SS_OK, SS_ERR_DIM
   use statespace_rep, only: ssm_rep_t, ssm_rep
-  use statespace_filter, only: filter_result_t, kalman_filter, loglike, loglike_concentrated
+  use statespace_filter, only: filter_result_t, kalman_filter, loglike, &
+                               loglike_concentrated
   use statespace_smoother, only: smoother_result_t, state_smoother
   use statespace_forecast, only: forecast_result_t, forecast
   use statespace_simsmooth, only: simsmooth_result_t, simulate, simulation_smoother
-  use statespace_diagnostics, only: standardized_residuals, diagnostic_start, ljung_box, &
-                                    jarque_bera, breakvar_test
+  use statespace_diagnostics, only: standardized_residuals, diagnostic_start, &
+                                    ljung_box, jarque_bera, breakvar_test
   use statespace_filter, only: steady_state
   implicit none
   private
@@ -27,21 +28,24 @@ module statespace_capi
   character(len=*), parameter :: version = "0.1.1"
 
   !> Codes for the representation's arrays in ss_rep_set.
-  integer(c_int), parameter, public :: SS_ARR_Y = 1, SS_ARR_Z = 2, SS_ARR_H = 3, SS_ARR_T = 4, &
-                                       SS_ARR_R = 5, SS_ARR_Q = 6, SS_ARR_C = 7, SS_ARR_D = 8
+  integer(c_int), parameter, public :: SS_ARR_Y = 1, SS_ARR_Z = 2, SS_ARR_H = 3, &
+                                       SS_ARR_T = 4, SS_ARR_R = 5, SS_ARR_Q = 6, &
+                                       SS_ARR_C = 7, SS_ARR_D = 8
   !> Codes for ss_rep_set_int and ss_rep_set_real.
-  integer(c_int), parameter, public :: SS_OPT_FILTER_METHOD = 1, SS_OPT_DIFFUSE_METHOD = 2, &
-                                       SS_OPT_LOGLIKELIHOOD_BURN = 3, SS_OPT_MARGINAL = 4
+  integer(c_int), parameter, public :: SS_OPT_FILTER_METHOD = 1, &
+                                       SS_OPT_DIFFUSE_METHOD = 2, &
+                                       SS_OPT_LOGLIKELIHOOD_BURN = 3, &
+                                       SS_OPT_MARGINAL = 4
   integer(c_int), parameter, public :: SS_OPT_TOL_DIFFUSE = 1, SS_OPT_TOL_STEADY = 2
   !> Codes for ss_filter_get.
-  integer(c_int), parameter, public :: SS_F_A = 1, SS_F_P = 2, SS_F_PINF = 3, SS_F_ATT = 4, &
-                                       SS_F_PTT = 5, SS_F_YHAT = 6, SS_F_V = 7, SS_F_F = 8, &
-                                       SS_F_FINF = 9, SS_F_FINV = 10, SS_F_K = 11, &
-                                       SS_F_LLF_OBS = 12
+  integer(c_int), parameter, public :: SS_F_A = 1, SS_F_P = 2, SS_F_PINF = 3, &
+                                       SS_F_ATT = 4, SS_F_PTT = 5, SS_F_YHAT = 6, &
+                                       SS_F_V = 7, SS_F_F = 8, SS_F_FINF = 9, &
+                                       SS_F_FINV = 10, SS_F_K = 11, SS_F_LLF_OBS = 12
   !> Codes for ss_smoother_get.
-  integer(c_int), parameter, public :: SS_S_ALPHAHAT = 1, SS_S_V = 2, SS_S_R = 3, SS_S_N = 4, &
-                                       SS_S_EPSHAT = 5, SS_S_EPSVAR = 6, SS_S_ETAHAT = 7, &
-                                       SS_S_ETAVAR = 8
+  integer(c_int), parameter, public :: SS_S_ALPHAHAT = 1, SS_S_V = 2, SS_S_R = 3, &
+                                       SS_S_N = 4, SS_S_EPSHAT = 5, SS_S_EPSVAR = 6, &
+                                       SS_S_ETAHAT = 7, SS_S_ETAVAR = 8
 
   type, public :: filter_box
     type(filter_result_t) :: res
@@ -51,7 +55,8 @@ module statespace_capi
     type(smoother_result_t) :: res
   end type smoother_box
 
-  public :: ss_version, ss_rep_new, ss_rep_free, ss_rep_set, ss_rep_set_int, ss_rep_set_real
+  public :: ss_version, ss_rep_new, ss_rep_free, ss_rep_set, ss_rep_set_int, &
+            ss_rep_set_real
   public :: get_rep, get_filter, get_smoother, copy_out, ss_rep_info, ss_rep_get
   public :: ss_rep_init_known, ss_rep_init_diffuse, ss_rep_init_approx_diffuse
   public :: ss_rep_init_stationary, ss_rep_init_general, ss_rep_init_block
@@ -94,7 +99,8 @@ contains
 
   !> A representation for p series, m states, r disturbances and n periods,
   !> with zero system matrices (time-invariant) and y = 0.
-  integer(c_int) function ss_rep_new(p, m, r, n, handle) bind(C, name="ss_rep_new") result(info)
+  integer(c_int) function ss_rep_new(p, m, r, n, handle) &
+    bind(C, name="ss_rep_new") result(info)
     integer(c_int), value :: p, m, r, n
     type(c_ptr), intent(out) :: handle
     type(ssm_rep_t), pointer :: b
@@ -122,7 +128,8 @@ contains
   !> Set one of the arrays (SS_ARR_*) from data. nt is its time dimension,
   !> 1 or n (ignored for y). Shapes: y (p, n), Z (p, m, nt), H (p, p, nt),
   !> T (m, m, nt), R (m, r, nt), Q (r, r, nt), c (m, nt), d (p, nt).
-  integer(c_int) function ss_rep_set(handle, code, nt, data) bind(C, name="ss_rep_set") result(info)
+  integer(c_int) function ss_rep_set(handle, code, nt, data) &
+    bind(C, name="ss_rep_set") result(info)
     type(c_ptr), value :: handle
     integer(c_int), value :: code, nt
     type(c_ptr), value :: data
@@ -176,8 +183,8 @@ contains
 
   !> Dimensions (p, m, r, n) and the time dimension nts(i) of each array
   !> SS_ARR_i (i = 1..8; n for y).
-  integer(c_int) function ss_rep_info(handle, p, m, r, n, nts) bind(C, name="ss_rep_info") &
-    result(info)
+  integer(c_int) function ss_rep_info(handle, p, m, r, n, nts) &
+    bind(C, name="ss_rep_info") result(info)
     type(c_ptr), value :: handle
     integer(c_int), intent(out) :: p, m, r, n, nts(8)
     type(ssm_rep_t), pointer :: b
@@ -193,7 +200,8 @@ contains
 
   !> Copy one of the arrays (SS_ARR_*) into out, with the shape given by
   !> ss_rep_info.
-  integer(c_int) function ss_rep_get(handle, code, out) bind(C, name="ss_rep_get") result(info)
+  integer(c_int) function ss_rep_get(handle, code, out) &
+    bind(C, name="ss_rep_get") result(info)
     type(c_ptr), value :: handle, out
     integer(c_int), value :: code
     type(ssm_rep_t), pointer :: b
@@ -226,8 +234,8 @@ contains
 
   !> Integer options (SS_OPT_*): filter_method, diffuse_method,
   !> loglikelihood_burn, marginal_likelihood (0/1).
-  integer(c_int) function ss_rep_set_int(handle, code, value) bind(C, name="ss_rep_set_int") &
-    result(info)
+  integer(c_int) function ss_rep_set_int(handle, code, value) &
+    bind(C, name="ss_rep_set_int") result(info)
     type(c_ptr), value :: handle
     integer(c_int), value :: code, value
     type(ssm_rep_t), pointer :: b
@@ -251,8 +259,8 @@ contains
   end function ss_rep_set_int
 
   !> Real options (SS_OPT_*): tol_diffuse, tol_steady.
-  integer(c_int) function ss_rep_set_real(handle, code, value) bind(C, name="ss_rep_set_real") &
-    result(info)
+  integer(c_int) function ss_rep_set_real(handle, code, value) &
+    bind(C, name="ss_rep_set_real") result(info)
     type(c_ptr), value :: handle
     integer(c_int), value :: code
     real(c_double), value :: value
@@ -272,8 +280,8 @@ contains
     info = SS_OK
   end function ss_rep_set_real
 
-  integer(c_int) function ss_rep_init_known(handle, a1, P1) bind(C, name="ss_rep_init_known") &
-    result(info)
+  integer(c_int) function ss_rep_init_known(handle, a1, P1) &
+    bind(C, name="ss_rep_init_known") result(info)
     type(c_ptr), value :: handle, a1, P1
     type(ssm_rep_t), pointer :: b
     real(dp), pointer :: a(:), P(:, :)
@@ -289,8 +297,8 @@ contains
     info = SS_OK
   end function ss_rep_init_known
 
-  integer(c_int) function ss_rep_init_diffuse(handle) bind(C, name="ss_rep_init_diffuse") &
-    result(info)
+  integer(c_int) function ss_rep_init_diffuse(handle) &
+    bind(C, name="ss_rep_init_diffuse") result(info)
     type(c_ptr), value :: handle
     type(ssm_rep_t), pointer :: b
 
@@ -314,8 +322,8 @@ contains
     info = SS_OK
   end function ss_rep_init_approx_diffuse
 
-  integer(c_int) function ss_rep_init_stationary(handle) bind(C, name="ss_rep_init_stationary") &
-    result(info)
+  integer(c_int) function ss_rep_init_stationary(handle) &
+    bind(C, name="ss_rep_init_stationary") result(info)
     type(c_ptr), value :: handle
     type(ssm_rep_t), pointer :: b
 
@@ -373,7 +381,8 @@ contains
 
   ! ----------------------------------------------------------- filtering
 
-  integer(c_int) function ss_loglike(handle, llf) bind(C, name="ss_loglike") result(info)
+  integer(c_int) function ss_loglike(handle, llf) &
+    bind(C, name="ss_loglike") result(info)
     type(c_ptr), value :: handle
     real(c_double), intent(out) :: llf
     type(ssm_rep_t), pointer :: b
@@ -404,7 +413,8 @@ contains
 
   !> Run the Kalman filter; fhandle receives the result (free with
   !> ss_filter_free).
-  integer(c_int) function ss_filter(handle, fhandle) bind(C, name="ss_filter") result(info)
+  integer(c_int) function ss_filter(handle, fhandle) &
+    bind(C, name="ss_filter") result(info)
     type(c_ptr), value :: handle
     type(c_ptr), intent(out) :: fhandle
     type(ssm_rep_t), pointer :: b
@@ -425,7 +435,8 @@ contains
     fhandle = c_loc(f)
   end function ss_filter
 
-  integer(c_int) function ss_filter_free(fhandle) bind(C, name="ss_filter_free") result(info)
+  integer(c_int) function ss_filter_free(fhandle) &
+    bind(C, name="ss_filter_free") result(info)
     type(c_ptr), value :: fhandle
     type(filter_box), pointer :: f
 
@@ -437,7 +448,8 @@ contains
   end function ss_filter_free
 
   !> Scalars of a filter result.
-  integer(c_int) function ss_filter_scalars(fhandle, llf, nobs_diffuse, k_diffuse, t_steady) &
+  integer(c_int) function ss_filter_scalars(fhandle, llf, nobs_diffuse, k_diffuse, &
+                                            t_steady) &
     bind(C, name="ss_filter_scalars") result(info)
     type(c_ptr), value :: fhandle
     real(c_double), intent(out) :: llf
@@ -457,8 +469,8 @@ contains
   !> Copy a filter output (SS_F_*) into out. Sizes: a (m, n+1), P and Pinf
   !> (m, m, n+1), att (m, n), Ptt (m, m, n), yhat and v (p, n), F, Finf and
   !> Finv (p, p, n), K (m, p, n), llf_obs (n).
-  integer(c_int) function ss_filter_get(fhandle, code, out) bind(C, name="ss_filter_get") &
-    result(info)
+  integer(c_int) function ss_filter_get(fhandle, code, out) &
+    bind(C, name="ss_filter_get") result(info)
     type(c_ptr), value :: fhandle, out
     integer(c_int), value :: code
     type(filter_box), pointer :: f
@@ -503,8 +515,8 @@ contains
 
   !> Run the state and disturbance smoother on a filter result; shandle
   !> receives the result (free with ss_smoother_free).
-  integer(c_int) function ss_smooth(handle, fhandle, shandle) bind(C, name="ss_smooth") &
-    result(info)
+  integer(c_int) function ss_smooth(handle, fhandle, shandle) &
+    bind(C, name="ss_smooth") result(info)
     type(c_ptr), value :: handle, fhandle
     type(c_ptr), intent(out) :: shandle
     type(ssm_rep_t), pointer :: b
@@ -527,7 +539,8 @@ contains
     shandle = c_loc(s)
   end function ss_smooth
 
-  integer(c_int) function ss_smoother_free(shandle) bind(C, name="ss_smoother_free") result(info)
+  integer(c_int) function ss_smoother_free(shandle) &
+    bind(C, name="ss_smoother_free") result(info)
     type(c_ptr), value :: shandle
     type(smoother_box), pointer :: s
 
@@ -541,8 +554,8 @@ contains
   !> Copy a smoother output (SS_S_*) into out. Sizes: alphahat (m, n),
   !> V (m, m, n), r (m, n+1) for t = 0..n, N (m, m, n+1), epshat (p, n),
   !> epsvar (p, p, n), etahat (r, n), etavar (r, r, n).
-  integer(c_int) function ss_smoother_get(shandle, code, out) bind(C, name="ss_smoother_get") &
-    result(info)
+  integer(c_int) function ss_smoother_get(shandle, code, out) &
+    bind(C, name="ss_smoother_get") result(info)
     type(c_ptr), value :: shandle, out
     integer(c_int), value :: code
     type(smoother_box), pointer :: s
@@ -579,8 +592,8 @@ contains
 
   !> Forecasts h steps past the end of the sample from a filter result
   !> (time-invariant models, DK 4.11): mean (p, h) and cov (p, p, h).
-  integer(c_int) function ss_forecast(handle, fhandle, h, mean, cov) bind(C, name="ss_forecast") &
-    result(info)
+  integer(c_int) function ss_forecast(handle, fhandle, h, mean, cov) &
+    bind(C, name="ss_forecast") result(info)
     type(c_ptr), value :: handle, fhandle, mean, cov
     integer(c_int), value :: h
     type(ssm_rep_t), pointer :: b
@@ -601,11 +614,12 @@ contains
 
   !> Simulate from the model with standard normal variates u_init (m),
   !> u_eps (p, n) and u_eta (r, n): y (p, n), alpha (m, n), eps, eta.
-  integer(c_int) function ss_simulate(handle, u_init, u_eps, u_eta, y, alpha, eps, eta) &
-    bind(C, name="ss_simulate") result(info)
+  integer(c_int) function ss_simulate(handle, u_init, u_eps, u_eta, y, alpha, eps, &
+                                      eta) bind(C, name="ss_simulate") result(info)
     type(c_ptr), value :: handle, u_init, u_eps, u_eta, y, alpha, eps, eta
     type(ssm_rep_t), pointer :: b
-    real(dp), pointer :: ui(:), ue(:, :), un(:, :), yo(:, :), ao(:, :), eo(:, :), no(:, :)
+    real(dp), pointer :: ui(:), ue(:, :), un(:, :), yo(:, :), ao(:, :), eo(:, :), &
+                         no(:, :)
     integer :: p, m, r, n, stat
 
     info = SS_ERR_DIM
@@ -622,7 +636,8 @@ contains
 
   !> One draw of alpha, eps and eta given the data (DK 4.9.2) from standard
   !> normal variates; outputs state (m, n), eps (p, n), eta (r, n).
-  integer(c_int) function ss_simulation_smoother(handle, u_init, u_eps, u_eta, state, eps, eta) &
+  integer(c_int) function ss_simulation_smoother(handle, u_init, u_eps, u_eta, state, &
+                                                 eps, eta) &
     bind(C, name="ss_simulation_smoother") result(info)
     type(c_ptr), value :: handle, u_init, u_eps, u_eta, state, eps, eta
     type(ssm_rep_t), pointer :: b
@@ -645,8 +660,8 @@ contains
   end function ss_simulation_smoother
 
   !> Steady state P (m, m) and F (p, p) of a time-invariant model (DK 4.3.4).
-  integer(c_int) function ss_steady_state(handle, P, F) bind(C, name="ss_steady_state") &
-    result(info)
+  integer(c_int) function ss_steady_state(handle, P, F) &
+    bind(C, name="ss_steady_state") result(info)
     type(c_ptr), value :: handle, P, F
     type(ssm_rep_t), pointer :: b
     real(dp), pointer :: Po(:, :), Fo(:, :)
@@ -726,8 +741,8 @@ contains
   end function ss_jarque_bera
 
   !> Heteroskedasticity test H(h) for x (n); h <= 0 for the default.
-  integer(c_int) function ss_breakvar(n, x, h, stat, pvalue) bind(C, name="ss_breakvar") &
-    result(info)
+  integer(c_int) function ss_breakvar(n, x, h, stat, pvalue) &
+    bind(C, name="ss_breakvar") result(info)
     integer(c_int), value :: n, h
     type(c_ptr), value :: x
     real(c_double), intent(out) :: stat, pvalue

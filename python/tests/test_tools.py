@@ -1,7 +1,6 @@
 """Forecasting, simulation and diagnostics through the Python layer."""
 
 import numpy as np
-
 import ssfortran as ss
 from _fixtures import close, read_fixture, rep_from_fixture
 
@@ -28,7 +27,7 @@ def test_simulation_matches_statsmodels():
     sx = read_fixture("sim_mv_missing")
     y, alpha, eps, eta = rep.simulate(variates=(sx["u_init"], sx["u_eps"], sx["u_eta"]))
     close(y, sx["generated_obs"].reshape(y.shape, order="F"))
-    close(alpha, sx["generated_state"][:, :y.shape[1]])
+    close(alpha, sx["generated_state"][:, : y.shape[1]])
 
     rep = rep_from_fixture(read_fixture("mv_invariant"))
     sx = read_fixture("sim_mv_invariant")

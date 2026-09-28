@@ -24,8 +24,16 @@ DATASETS = [
 # FRED H.15 monthly constant-maturity Treasury yields, as a public-domain
 # substitute for DK 8.6's Diebold-Li (CRSP) data: (series, maturity in months)
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
-YIELDS = [("GS3M", 3), ("GS6M", 6), ("GS1", 12), ("GS2", 24), ("GS3", 36),
-          ("GS5", 60), ("GS7", 84), ("GS10", 120)]
+YIELDS = [
+    ("GS3M", 3),
+    ("GS6M", 6),
+    ("GS1", 12),
+    ("GS2", 24),
+    ("GS3", 36),
+    ("GS5", 60),
+    ("GS7", 84),
+    ("GS10", 120),
+]
 YIELDS_START, YIELDS_END = "1985-01-01", "2000-12-01"
 
 
@@ -33,7 +41,7 @@ def fetch_yields(dest):
     ids = ",".join(s for s, _ in YIELDS)
     with urllib.request.urlopen(FRED_URL + ids) as resp:
         lines = resp.read().decode().splitlines()
-    rows = [l for l in lines[1:] if YIELDS_START <= l.split(",")[0] <= YIELDS_END]
+    rows = [r for r in lines[1:] if YIELDS_START <= r.split(",")[0] <= YIELDS_END]
     header = "date," + ",".join(f"m{m}" for _, m in YIELDS)
     dest.write_text("\n".join([header] + rows) + "\n")
 

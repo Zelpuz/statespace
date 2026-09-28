@@ -43,23 +43,23 @@ contains
   subroutine collect_mle(testsuite)
     type(unittest_type), allocatable, intent(out) :: testsuite(:)
 
-    testsuite = [ &
-                new_unittest("transform_roundtrip", test_transform), &
-                new_unittest("loglike_at_statsmodels_params", test_loglike), &
-                new_unittest("fit_from_statsmodels_start", test_fit_sm_start), &
-                new_unittest("fit_from_default_start", test_fit_default_start), &
-                new_unittest("fit_tight_tolerances", test_fit_tight), &
-                new_unittest("fit_exact_diffuse", test_fit_exact_diffuse), &
-                new_unittest("fit_analytic_vs_numerical_gradient", test_fit_gradients), &
-                new_unittest("estimation_bias", test_estimation_bias), &
-                new_unittest("concentrated_nile", test_concentrated_nile), &
-                new_unittest("concentrated_multivariate_diffuse", test_concentrated_mv), &
-                new_unittest("concentrated_ar2_fit", test_concentrated_ar2_fit), &
-                new_unittest("stationary_transform", test_stationary_transform), &
-                new_unittest("ar2_loglike", test_ar2_loglike), &
-                new_unittest("ar2_fit", test_ar2_fit), &
-                new_unittest("fit_many_matches_fit", test_fit_many) &
-                ]
+    testsuite = [ new_unittest("transform_roundtrip", test_transform), &
+                 new_unittest("loglike_at_statsmodels_params", test_loglike), &
+                 new_unittest("fit_from_statsmodels_start", test_fit_sm_start), &
+                 new_unittest("fit_from_default_start", test_fit_default_start), &
+                 new_unittest("fit_tight_tolerances", test_fit_tight), &
+                 new_unittest("fit_exact_diffuse", test_fit_exact_diffuse), &
+                 new_unittest("fit_analytic_vs_numerical_gradient", &
+                              test_fit_gradients), new_unittest("estimation_bias", &
+        test_estimation_bias), new_unittest("concentrated_nile", &
+                                            test_concentrated_nile), &
+                 new_unittest("concentrated_multivariate_diffuse", &
+                              test_concentrated_mv), &
+                 new_unittest("concentrated_ar2_fit", test_concentrated_ar2_fit), &
+                 new_unittest("stationary_transform", test_stationary_transform), &
+                 new_unittest("ar2_loglike", test_ar2_loglike), &
+                 new_unittest("ar2_fit", test_ar2_fit), &
+                 new_unittest("fit_many_matches_fit", test_fit_many) ]
   end subroutine collect_mle
 
   function local_level(y) result(mod)
@@ -142,7 +142,8 @@ contains
     real(dp), intent(in) :: unconstrained(:)
     real(dp), allocatable :: constrained(:)
 
-    constrained = [constrain_stationary(unconstrained(1:2)), constrain_positive(unconstrained(3))]
+    constrained = [constrain_stationary(unconstrained(1:2)), &
+                   constrain_positive(unconstrained(3))]
   end function ar2_transform
 
   function ar2_untransform(self, constrained) result(unconstrained)
@@ -150,7 +151,8 @@ contains
     real(dp), intent(in) :: constrained(:)
     real(dp), allocatable :: unconstrained(:)
 
-    unconstrained = [unconstrain_stationary(constrained(1:2)), unconstrain_positive(constrained(3))]
+    unconstrained = [unconstrain_stationary(constrained(1:2)), &
+                     unconstrain_positive(constrained(3))]
   end function ar2_untransform
 
   subroutine ar2c_update(self, params)
@@ -205,7 +207,8 @@ contains
     character(len=32) :: buf
 
     write (buf, '(es10.3)') relerr(actual, expected)
-    call check(error, relerr(actual, expected) <= tol, label//": relative error "//trim(buf))
+    call check(error, relerr(actual, expected) <= tol, &
+               label//": relative error "//trim(buf))
   end subroutine check_rel
 
   subroutine test_transform(error)
@@ -214,8 +217,8 @@ contains
     real(dp), parameter :: p(2) = [15099.0_dp, 1469.1_dp]
 
     mod = nile_model()
-    call check_rel(error, mod%transform_params(mod%untransform_params(p)), p, 1.0e-14_dp, &
-                   "roundtrip")
+    call check_rel(error, mod%transform_params(mod%untransform_params(p)), p, &
+                   1.0e-14_dp, "roundtrip")
   end subroutine test_transform
 
   subroutine test_loglike(error)
@@ -258,18 +261,18 @@ contains
     ! At least as good as statsmodels at default tolerances, no better than
     ! the tight optimum.
     write (buf, '(2es12.4)') res%llf - llf_default, res%llf - llf_tight
-    call check(error, res%llf >= llf_default - 1.0e-7_dp .and. res%llf <= llf_tight + 1.0e-8_dp, &
-               "llf out of range: "//trim(buf))
+    call check(error, res%llf >= llf_default - 1.0e-7_dp &
+               .and. res%llf <= llf_tight + 1.0e-8_dp, "llf out of range: "//trim(buf))
     if (allocated(error)) return
     call check_rel(error, res%params, fx%get1('params_tight'), tol, "params")
     if (allocated(error)) return
     call check_rel(error, res%bse, fx%get1('bse_tight'), tol, "bse")
     if (allocated(error)) return
-    call check_rel(error, [res%aic, res%bic], [fx%get1('aic_tight'), fx%get1('bic_tight')], &
-                   1.0e-6_dp, "aic/bic")
+    call check_rel(error, [res%aic, res%bic], &
+                   [fx%get1('aic_tight'), fx%get1('bic_tight')], 1.0e-6_dp, "aic/bic")
     if (allocated(error)) return
-    call check_rel(error, [mod%rep%H(1, 1, 1), mod%rep%Q(1, 1, 1)], res%params, 0.0_dp, &
-                   "model left at estimates")
+    call check_rel(error, [mod%rep%H(1, 1, 1), mod%rep%Q(1, 1, 1)], res%params, &
+                   0.0_dp, "model left at estimates")
   end subroutine check_fit
 
   subroutine test_fit_sm_start(error)
@@ -334,12 +337,13 @@ contains
     if (allocated(error)) return
     call check_rel(error, res%params, fx%get1('params_tight'), 1.0e-4_dp, "params")
     if (allocated(error)) return
-    call check_rel(error, res%params, [15099.0_dp, 1469.1_dp], 1.0e-3_dp, "DK estimates")
+    call check_rel(error, res%params, [15099.0_dp, 1469.1_dp], 1.0e-3_dp, &
+                   "DK estimates")
     if (allocated(error)) return
     call check_rel(error, res%bse, fx%get1('bse_tight'), 1.0e-4_dp, "bse")
     if (allocated(error)) return
-    call check_rel(error, [res%aic, res%bic], [fx%get1('aic_tight'), fx%get1('bic_tight')], &
-                   1.0e-6_dp, "aic/bic")
+    call check_rel(error, [res%aic, res%bic], &
+                   [fx%get1('aic_tight'), fx%get1('bic_tight')], 1.0e-6_dp, "aic/bic")
   end subroutine test_fit_exact_diffuse
 
   !> Local level with sigma2_eps concentrated out (H = 1, Q = q), against
@@ -378,11 +382,12 @@ contains
         if (allocated(error)) return
         call check_rel(error, [llf, scale], &
                        [sum(cx%get1(trim(inits(i))//'_'//trim(tags(j))//'_llf')), &
-                        sum(cx%get1(trim(inits(i))//'_'//trim(tags(j))//'_scale'))], 1.0e-9_dp, &
-                       trim(inits(i))//' '//trim(tags(j)))
+                        sum(cx%get1(trim(inits(i))//'_'//trim(tags(j))//'_scale'))], &
+                       1.0e-9_dp, trim(inits(i))//' '//trim(tags(j)))
         if (allocated(error)) return
         call rep%scale_by(scale)
-        call check_rel(error, [loglike(rep, info)], [llf], 1.0e-10_dp, "scaled model llf")
+        call check_rel(error, [loglike(rep, info)], [llf], 1.0e-10_dp, &
+                       "scaled model llf")
         if (allocated(error)) return
       end do
     end do
@@ -406,7 +411,8 @@ contains
       call check(error, info, SS_OK, "loglike_concentrated info")
       if (allocated(error)) return
       call check_rel(error, [llf, scale], [sum(cx%get1('mv_diffuse_llf')), &
-                                           sum(cx%get1('mv_diffuse_scale'))], 1.0e-9_dp, "mv_diffuse")
+                                           sum(cx%get1('mv_diffuse_scale'))], &
+                     1.0e-9_dp, "mv_diffuse")
       if (allocated(error)) return
     end do
   end subroutine test_concentrated_mv
@@ -438,8 +444,9 @@ contains
     if (allocated(error)) return
     call check_rel(error, [res%scale], cx%get1('ar2_scale'), 1.0e-4_dp, "scale")
     if (allocated(error)) return
-    call check_rel(error, [res%aic, res%bic], [sum(cx%get1('ar2_aic')), sum(cx%get1('ar2_bic'))], &
-                   1.0e-6_dp, "aic/bic")
+    call check_rel(error, [res%aic, res%bic], &
+                   [sum(cx%get1('ar2_aic')), sum(cx%get1('ar2_bic'))], 1.0e-6_dp, &
+                   "aic/bic")
   end subroutine test_concentrated_ar2_fit
 
   !> The analytic score (DK 7.3.3) must reach the same optimum as numerical
@@ -501,8 +508,9 @@ contains
     call estimation_bias(mod, fixed, 4, bias, info, biasV)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
-    call check(error, maxval(abs(bias)) < 1.0e-9_dp * maxval(abs(sres%alphahat)) .and. &
-               maxval(abs(biasV)) < 1.0e-9_dp * maxval(sres%V), "zero covariance gives zero bias")
+    call check(error, maxval(abs(bias)) < 1.0e-9_dp * maxval(abs(sres%alphahat)) &
+               .and. maxval(abs(biasV)) < 1.0e-9_dp * maxval(sres%V), &
+               "zero covariance gives zero bias")
     if (allocated(error)) return
     call estimation_bias(mod, res, 5, bias, info)
     call check(error, info, SS_ERR_DIM, "antithetic draws need an even N")
@@ -516,7 +524,8 @@ contains
     if (allocated(error)) return
     call random_seed(put=seed)
     call estimation_bias(mod, res, 500, bias2, info)
-    call check_rel(error, pack(bias2, .true.), pack(bias, .true.), 0.0_dp, "reproducible")
+    call check_rel(error, pack(bias2, .true.), pack(bias, .true.), 0.0_dp, &
+                   "reproducible")
     if (allocated(error)) return
     call check(error, failed == 0, "no failed draws on the unconstrained scale")
     if (allocated(error)) return
@@ -539,11 +548,11 @@ contains
 
     fx = load_fixture("test/fixtures/ar2.txt")
     x = fx%get1('transform_in')
-    call check_rel(error, constrain_stationary(x), fx%get1('transform_out'), 1.0e-14_dp, &
-                   "matches statsmodels")
+    call check_rel(error, constrain_stationary(x), fx%get1('transform_out'), &
+                   1.0e-14_dp, "matches statsmodels")
     if (allocated(error)) return
-    call check_rel(error, unconstrain_stationary(constrain_stationary(x)), x, 1.0e-12_dp, &
-                   "roundtrip")
+    call check_rel(error, unconstrain_stationary(constrain_stationary(x)), x, &
+                   1.0e-12_dp, "roundtrip")
   end subroutine test_stationary_transform
 
   subroutine test_ar2_loglike(error)
@@ -560,8 +569,8 @@ contains
     if (allocated(error)) return
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-10_dp, "llf_obs")
     if (allocated(error)) return
-    call check_rel(error, [mod%loglike(fx%get1('params'), info)], fx%get1('llf'), 1.0e-12_dp, &
-                   "llf")
+    call check_rel(error, [mod%loglike(fx%get1('params'), info)], fx%get1('llf'), &
+                   1.0e-12_dp, "llf")
   end subroutine test_ar2_loglike
 
   subroutine test_ar2_fit(error)
@@ -579,7 +588,8 @@ contains
     call fit(mod, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
-    call check(error, res%analytic_gradient, "hybrid gradient: sigma2 analytic, AR (in T) numerical")
+    call check(error, res%analytic_gradient, &
+               "hybrid gradient: sigma2 analytic, AR (in T) numerical")
     if (allocated(error)) return
     call check(error, res%converged, "not converged: "//trim(res%message))
     if (allocated(error)) return

@@ -5,7 +5,7 @@
 
 program locallevel
     implicit none
-    
+
     integer, parameter :: dp = selected_real_kind(15, 307)
     character(len=*), parameter :: filename = "data/nile.csv"
     real(dp), allocatable :: datetime(:), y(:), a(:), P(:), v(:), F(:), K(:)
@@ -14,10 +14,10 @@ program locallevel
     character(len=200) :: line
     integer :: unit, ios, len, t
     real(dp) :: a_0, P_0, var_epsilon, var_eta
-    
+
 
     open(newunit=unit, file=filename, status="old", action="read")
-    
+
     ! determine file length loop
     read(unit, "(A)", iostat=ios) line ! skip header row
     len = 0
@@ -43,10 +43,10 @@ program locallevel
     var_eta = 1469.1
     a_0 = 0.0
     P_0 = 1e7
-    
+
     a(1) = a_0
     P(1) = P_0
-    
+
     ! kalman filter loop
     do t = 1, len
         v(t) = y(t) - a(t)
@@ -62,7 +62,7 @@ program locallevel
 
     r(len) = 0.0
     N(len) = 0.0
-    
+
     ! state smoother loop
     do t = len, 1, -1
         L(t) = 1 - K(t)

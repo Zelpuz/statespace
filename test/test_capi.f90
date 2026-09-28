@@ -1,8 +1,8 @@
 !> The C interface (statespace_capi), called from Fortran as a C caller
 !> would: handles, arrays through pointers, status codes.
 module test_capi
-  use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_null_ptr, c_int, c_double, c_char, &
-                                         c_null_char
+  use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_null_ptr, c_int, c_double, &
+                                         c_char, c_null_char
   use testdrive, only: new_unittest, unittest_type, error_type, check
   use statespace
   use statespace_capi
@@ -32,9 +32,9 @@ contains
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     type(c_ptr) :: hr, fh, sh
-    real(dp), allocatable, target :: y(:, :), Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
-                                     Q(:, :, :), c(:, :), d(:, :), a1(:), P1(:, :), &
-                                     a(:, :), alphahat(:, :)
+    real(dp), allocatable, target :: y(:, :), Z(:, :, :), H(:, :, :), T(:, :, :), &
+                                     R(:, :, :), Q(:, :, :), c(:, :), d(:, :), a1(:), &
+                                     P1(:, :), a(:, :), alphahat(:, :)
     real(c_double) :: llf, llf_f
     integer(c_int) :: nd, kd, ts
     integer :: info, kp, km, kr, kn
@@ -42,7 +42,8 @@ contains
     fx = load_fixture("test/fixtures/mv_invariant.txt")
     rep = rep_from_fixture(fx)
     kp = rep%k_endog; km = rep%k_states; kr = rep%k_posdef; kn = rep%nobs
-    y = rep%y; Z = rep%Z; H = rep%H; T = rep%T; R = rep%R; Q = rep%Q; c = rep%c; d = rep%d
+    y = rep%y; Z = rep%Z; H = rep%H; T = rep%T
+    R = rep%R; Q = rep%Q; c = rep%c; d = rep%d
     a1 = fx%get1('a1'); P1 = fx%get2('P1')
 
     call check(error, ss_rep_new(kp, km, kr, kn, hr), SS_OK, "new")
@@ -60,7 +61,8 @@ contains
 
     call check(error, ss_loglike(hr, llf), SS_OK, "loglike")
     if (allocated(error)) return
-    call check(error, abs(llf - loglike(rep, info)) <= 1.0e-12_dp * abs(llf), "same loglike")
+    call check(error, abs(llf - loglike(rep, info)) <= 1.0e-12_dp * abs(llf), &
+               "same loglike")
     if (allocated(error)) return
 
     call kalman_filter(rep, fres, info)
@@ -72,17 +74,18 @@ contains
     allocate (a(km, kn + 1), alphahat(km, kn))
     call check(error, ss_filter_get(fh, SS_F_A, c_loc(a)), SS_OK, "get a")
     if (allocated(error)) return
-    call check(error, all(a == fres%a) .and. llf_f == fres%llf .and. ts == fres%t_steady, &
-               "same filter output")
+    call check(error, all(a == fres%a) .and. llf_f == fres%llf &
+               .and. ts == fres%t_steady, "same filter output")
     if (allocated(error)) return
     call check(error, ss_smooth(hr, fh, sh), SS_OK, "smooth")
     if (allocated(error)) return
-    call check(error, ss_smoother_get(sh, SS_S_ALPHAHAT, c_loc(alphahat)), SS_OK, "get alphahat")
+    call check(error, ss_smoother_get(sh, SS_S_ALPHAHAT, c_loc(alphahat)), SS_OK, &
+               "get alphahat")
     if (allocated(error)) return
     call check(error, all(alphahat == sres%alphahat), "same smoother output")
     if (allocated(error)) return
-    call check(error, ss_smoother_free(sh) == SS_OK .and. ss_filter_free(fh) == SS_OK .and. &
-               ss_rep_free(hr) == SS_OK, "free")
+    call check(error, ss_smoother_free(sh) == SS_OK .and. ss_filter_free(fh) == SS_OK &
+               .and. ss_rep_free(hr) == SS_OK, "free")
   end subroutine test_capi_mv
 
   !> Bad handles, shapes and codes return errors instead of crashing.
@@ -100,7 +103,8 @@ contains
     call check(error, ss_rep_new(2, 2, 2, 5, hr), SS_OK, "new")
     if (allocated(error)) return
     x = 0.0_dp
-    call check(error, ss_rep_set(hr, SS_ARR_T, 3, c_loc(x)), SS_ERR_DIM, "nt neither 1 nor n")
+    call check(error, ss_rep_set(hr, SS_ARR_T, 3, c_loc(x)), SS_ERR_DIM, &
+               "nt neither 1 nor n")
     if (allocated(error)) return
     call check(error, ss_rep_set(hr, 99_c_int, 1, c_loc(x)), SS_ERR_DIM, "bad code")
     if (allocated(error)) return

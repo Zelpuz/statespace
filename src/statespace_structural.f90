@@ -15,8 +15,8 @@ module statespace_structural
   use statespace_kinds, only: dp
   use statespace_rep, only: INIT_DIFFUSE, INIT_STATIONARY
   use statespace_model, only: constrain_positive, unconstrain_positive
-  use statespace_components, only: component_t, constrain_interval, unconstrain_interval, &
-                                   diff_variance
+  use statespace_components, only: component_t, constrain_interval, &
+                                   unconstrain_interval, diff_variance
   implicit none
   private
 
@@ -339,7 +339,8 @@ contains
   subroutine irregular_fill(self, params, Z, H, T, R, Q)
     class(irregular_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     real(dp) :: S(self%p, self%p)
     integer :: j
 
@@ -391,7 +392,8 @@ contains
   subroutine level_fill(self, params, Z, H, T, R, Q)
     class(level_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     integer :: i
 
     do i = 1, self%p
@@ -426,7 +428,8 @@ contains
 
     self%p = size(y, 1); self%n = size(y, 2)
     self%m = 2 * self%p
-    self%r = merge(0, self%p, self%cov_level == COV_NONE) + merge(0, self%p, self%cov_slope == COV_NONE)
+    self%r = merge(0, self%p, self%cov_level == COV_NONE) &
+             + merge(0, self%p, self%cov_slope == COV_NONE)
     self%k = cov_nparams(self%cov_level, self%p) + cov_nparams(self%cov_slope, self%p)
   end subroutine trend_setup
 
@@ -434,7 +437,8 @@ contains
   subroutine trend_fill(self, params, Z, H, T, R, Q)
     class(trend_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     integer :: i, p, kl, e
 
     p = self%p
@@ -509,7 +513,8 @@ contains
   subroutine seasonal_fill(self, params, Z, H, T, R, Q)
     class(seasonal_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     real(dp), allocatable :: Zs(:), Ts(:, :), Qs(:, :), S(:, :)
     integer :: i, j, ms, rs, sp, a, c, d
 
@@ -620,7 +625,9 @@ contains
     real(dp), intent(in) :: y(:, :)
 
     self%p = size(y, 1); self%n = size(y, 2)
-    if (self%period_max <= 0.0_dp) self%period_max = max(real(self%n, dp), self%period_min + 1.0_dp)
+    if (self%period_max <= 0.0_dp) then
+      self%period_max = max(real(self%n, dp), self%period_min + 1.0_dp)
+    end if
     self%m = 2 * self%p
     self%r = merge(0, 2 * self%p, self%cov == COV_NONE)
     self%k = cov_nparams(self%cov, self%p) + 1 + merge(1, 0, self%damped)
@@ -629,7 +636,8 @@ contains
   subroutine cycle_fill(self, params, Z, H, T, R, Q)
     class(cycle_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     real(dp) :: lambda, rho, C(2, 2), S(self%p, self%p)
     integer :: i, j, kc
 
@@ -661,9 +669,13 @@ contains
 
     kc = cov_nparams(self%cov, self%p)
     constrained = [cov_constrain(self%cov, self%p, unconstrained(1:kc)), &
-                   constrain_interval(unconstrained(kc + 1), 2.0_dp * pi / self%period_max, &
+                   constrain_interval(unconstrained(kc + 1), &
+                                      2.0_dp * pi / self%period_max, &
                                       2.0_dp * pi / self%period_min)]
-    if (self%damped) constrained = [constrained, constrain_interval(unconstrained(kc + 2), 0.0_dp, 1.0_dp)]
+    if (self%damped) then
+      constrained = [constrained, &
+                     constrain_interval(unconstrained(kc + 2), 0.0_dp, 1.0_dp)]
+    end if
   end function cycle_transform
 
   function cycle_untransform(self, constrained) result(unconstrained)
@@ -674,9 +686,13 @@ contains
 
     kc = cov_nparams(self%cov, self%p)
     unconstrained = [cov_unconstrain(self%cov, self%p, constrained(1:kc)), &
-                     unconstrain_interval(constrained(kc + 1), 2.0_dp * pi / self%period_max, &
+                     unconstrain_interval(constrained(kc + 1), &
+                                          2.0_dp * pi / self%period_max, &
                                           2.0_dp * pi / self%period_min)]
-    if (self%damped) unconstrained = [unconstrained, unconstrain_interval(constrained(kc + 2), 0.0_dp, 1.0_dp)]
+    if (self%damped) then
+      unconstrained = [unconstrained, &
+                       unconstrain_interval(constrained(kc + 2), 0.0_dp, 1.0_dp)]
+    end if
   end function cycle_untransform
 
   function cycle_start(self, y) result(params)
@@ -698,7 +714,8 @@ contains
     class(cycle_t), intent(in) :: self
     integer, allocatable :: blocks(:, :)
 
-    blocks = reshape([1, self%m, merge(INIT_STATIONARY, INIT_DIFFUSE, self%damped)], [1, 3])
+    blocks = reshape([1, self%m, merge(INIT_STATIONARY, INIT_DIFFUSE, self%damped)], &
+                     [1, 3])
   end function cycle_init_blocks
 
   ! ----------------------------------------------------------- regression
@@ -709,7 +726,9 @@ contains
 
     self%p = size(y, 1); self%n = size(y, 2)
     self%m = size(self%x, 2)
-    if (.not. allocated(self%random_walk)) allocate (self%random_walk(self%m), source=.false.)
+    if (.not. allocated(self%random_walk)) then
+      allocate (self%random_walk(self%m), source=.false.)
+    end if
     self%r = count(self%random_walk)
     self%k = self%r
     self%tv_Z = .true.
@@ -718,7 +737,8 @@ contains
   subroutine regression_fill(self, params, Z, H, T, R, Q)
     class(regression_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     integer :: j, e
 
     Z(self%series, :, :) = transpose(self%x)
@@ -775,7 +795,9 @@ contains
     real(dp), intent(in) :: y(:, :)
 
     self%p = size(y, 1); self%n = size(y, 2)
-    if (size(self%times) /= self%n) error stop "continuous_level_t: times must have one entry per observation"
+    if (size(self%times) /= self%n) then
+      error stop "continuous_level_t: times must have one entry per observation"
+    end if
     self%m = 1; self%r = 1; self%k = 1
     self%tv_Q = .true.
   end subroutine clevel_setup
@@ -783,7 +805,8 @@ contains
   subroutine clevel_fill(self, params, Z, H, T, R, Q)
     class(continuous_level_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     integer :: i
 
     Z(1, 1, :) = 1.0_dp
@@ -800,7 +823,9 @@ contains
     real(dp), intent(in) :: y(:, :)
 
     self%p = size(y, 1); self%n = size(y, 2)
-    if (size(self%times) /= self%n) error stop "continuous_trend_t: times must have one entry per observation"
+    if (size(self%times) /= self%n) then
+      error stop "continuous_trend_t: times must have one entry per observation"
+    end if
     self%m = 2; self%r = 2; self%k = 1
     self%tv_T = .true.
     self%tv_Q = .true.
@@ -809,7 +834,8 @@ contains
   subroutine ctrend_fill(self, params, Z, H, T, R, Q)
     class(continuous_trend_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     real(dp) :: delta
     integer :: i
 
@@ -820,7 +846,8 @@ contains
       delta = 0.0_dp
       if (i < self%n) delta = self%times(i + 1) - self%times(i)
       T(:, :, i) = reshape([1.0_dp, 0.0_dp, delta, 1.0_dp], [2, 2])
-      Q(:, :, i) = params(1) * delta * reshape([delta**2 / 3, delta / 2, delta / 2, 1.0_dp], [2, 2])
+      Q(:, :, i) = params(1) * delta * reshape([delta**2 / 3, delta / 2, delta / 2, &
+                                                1.0_dp], [2, 2])
     end do
   end subroutine ctrend_fill
 
@@ -872,7 +899,8 @@ contains
     class(trend_t), intent(in) :: self
     character(len=32), allocatable :: names(:)
 
-    names = [cov_names(self%cov_level, self%p, "level"), cov_names(self%cov_slope, self%p, "slope")]
+    names = [cov_names(self%cov_level, self%p, "level"), &
+             cov_names(self%cov_slope, self%p, "slope")]
   end function trend_names
 
   function seasonal_names(self) result(names)
@@ -886,7 +914,8 @@ contains
     class(cycle_t), intent(in) :: self
     character(len=32), allocatable :: names(:)
 
-    names = [character(len=32) :: cov_names(self%cov, self%p, "cycle"), "frequency.cycle"]
+    names = [character(len=32) :: cov_names(self%cov, self%p, "cycle"), &
+             "frequency.cycle"]
     if (self%damped) names = [character(len=32) :: names, "damping.cycle"]
   end function cycle_names
 

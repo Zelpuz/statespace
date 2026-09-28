@@ -35,7 +35,8 @@ contains
     type(ssm_rep_t), intent(out) :: crep
     real(dp), intent(out), contiguous :: llf_adjust(:)   !< (n)
     integer, intent(out) :: info
-    real(dp), allocatable :: Zo(:, :), Hinv(:, :), ZtHinv(:, :), Hbar(:, :), yo(:), ybar(:), e(:)
+    real(dp), allocatable :: Zo(:, :), Hinv(:, :), ZtHinv(:, :), Hbar(:, :), yo(:), &
+                             ybar(:), e(:)
     integer, allocatable :: idx(:)
     real(dp) :: logdetH, logdetHbarinv, nan
     integer :: m, n, t, i, n_o, iz, ih, id

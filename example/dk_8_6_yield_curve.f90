@@ -180,7 +180,8 @@ program dk_8_6_yield_curve
   implicit none
 
   real(dp), parameter :: tau(8) = [3, 6, 12, 24, 36, 60, 84, 120]
-  character(len=3), parameter :: col(8) = ["3  ", "6  ", "12 ", "24 ", "36 ", "60 ", "84 ", "120"]
+  character(len=3), parameter :: col(8) = ["3  ", "6  ", "12 ", "24 ", "36 ", "60 ", &
+                                           "84 ", "120"]
   character(len=32), allocatable :: names(:)
   real(dp), allocatable :: data(:, :), y(:, :), adjust(:), Phi(:, :)
   type(dns_t) :: mod
@@ -222,13 +223,15 @@ program dk_8_6_yield_curve
   if (info /= SS_OK) error stop "collapse"
   call kalman_filter(crep, cfres, info)
   call state_smoother(crep, cfres, csres, info)
-  print '(a, es10.2)', "collapsed log likelihood - full: ", cfres%llf + sum(adjust) - fres%llf
-  print '(a, es10.2)', "largest smoothed factor difference: ", maxval(abs(csres%alphahat - sres%alphahat))
+  print '(a, es10.2)', "collapsed log likelihood - full: ", &
+      cfres%llf + sum(adjust) - fres%llf
+  print '(a, es10.2)', "largest smoothed factor difference: ", &
+      maxval(abs(csres%alphahat - sres%alphahat))
 
   ! Smoothed factors against the data proxies of DK Fig. 8.12
   print '(/, a6, 6a10)', "month", "level", "10y", "slope", "3m-10y", "curv", "proxy"
   do t = 1, n, 24
-    print '(i6, 6f10.3)', t, sres%alphahat(1, t), y(8, t), sres%alphahat(2, t), y(1, t) - y(8, t), &
-      sres%alphahat(3, t), 2 * y(4, t) - y(1, t) - y(8, t)
+    print '(i6, 6f10.3)', t, sres%alphahat(1, t), y(8, t), sres%alphahat(2, t), &
+        y(1, t) - y(8, t), sres%alphahat(3, t), 2 * y(4, t) - y(1, t) - y(8, t)
   end do
 end program dk_8_6_yield_curve

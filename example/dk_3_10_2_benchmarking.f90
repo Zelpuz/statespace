@@ -142,7 +142,8 @@ program dk_3_10_2_benchmarking
     end if
   end do
 
-  print '(a, es10.2)', "largest |sum of smoothed y* over a year - benchmark|: ", bench_err
+  print '(a, es10.2)', "largest |sum of smoothed y* over a year - benchmark|: ", &
+      bench_err
   print '(a, f8.4)', "RMSE of smoothed y*, with benchmarks:    ", rmse(yhat(:, 1))
   print '(a, f8.4)', "RMSE of smoothed y*, without benchmarks: ", rmse(yhat(:, 2))
   print '(a, f8.4)', "RMSE of the raw survey values:           ", rmse(y(1, :))

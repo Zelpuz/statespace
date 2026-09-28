@@ -59,13 +59,14 @@ def _find_library():
     if env:
         return env
     here = Path(__file__).resolve().parent
-    candidates = [here, here.parents[2] / "build" / "cmake"]   # python/src/ssfortran
+    candidates = [here, here.parents[2] / "build" / "cmake"]  # python/src/ssfortran
     for d in candidates:
         for name in _library_names():
             if (d / name).exists():
                 return str(d / name)
-    raise OSError("libstatespace not found; build it with CMake (see README) "
-                  "or set SSFORTRAN_LIB")
+    raise OSError(
+        "libstatespace not found; build it with CMake (see README) or set SSFORTRAN_LIB"
+    )
 
 
 lib = ctypes.CDLL(_find_library())

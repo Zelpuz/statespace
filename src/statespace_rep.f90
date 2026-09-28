@@ -117,8 +117,9 @@ contains
     rep%k_states = m
     rep%k_posdef = r
     rep%y = y
-    allocate (rep%Z(rep%k_endog, m, 1), rep%H(rep%k_endog, rep%k_endog, 1), rep%T(m, m, 1), &
-              rep%R(m, r, 1), rep%Q(r, r, 1), rep%c(m, 1), rep%d(rep%k_endog, 1), source=0.0_dp)
+    allocate (rep%Z(rep%k_endog, m, 1), rep%H(rep%k_endog, rep%k_endog, 1), &
+              rep%T(m, m, 1), rep%R(m, r, 1), rep%Q(r, r, 1), rep%c(m, 1), &
+              rep%d(rep%k_endog, 1), source=0.0_dp)
     rep%R(:, :, 1) = eye(m, r)
   end function ssm_rep
 
@@ -145,7 +146,8 @@ contains
     real(dp), intent(in), optional :: a1(:)
 
     call reset_init(self)
-    call self%initialize_block(1, self%k_states, INIT_APPROX_DIFFUSE, a1=a1, kappa=kappa)
+    call self%initialize_block(1, self%k_states, INIT_APPROX_DIFFUSE, a1=a1, &
+                               kappa=kappa)
   end subroutine initialize_approximate_diffuse
 
   !> alpha_1 from the unconditional distribution of a stationary state:
@@ -204,9 +206,11 @@ contains
     case (INIT_APPROX_DIFFUSE)
       self%Pstar1(first:last, first:last) = eye(last - first + 1)
       if (present(kappa)) then
-        self%Pstar1(first:last, first:last) = kappa * self%Pstar1(first:last, first:last)
+        self%Pstar1(first:last, first:last) = kappa &
+                                              * self%Pstar1(first:last, first:last)
       else
-        self%Pstar1(first:last, first:last) = 1.0e6_dp * self%Pstar1(first:last, first:last)
+        self%Pstar1(first:last, first:last) = 1.0e6_dp &
+                                              * self%Pstar1(first:last, first:last)
       end if
     end select
   end subroutine initialize_block
@@ -342,7 +346,8 @@ contains
       if (self%blk_first(k) < 1 .or. self%blk_last(k) > m .or. &
           self%blk_first(k) > self%blk_last(k)) return
       if (self%blk_kind(k) < INIT_KNOWN .or. self%blk_kind(k) > INIT_GENERAL) return
-      covered(self%blk_first(k):self%blk_last(k)) = covered(self%blk_first(k):self%blk_last(k)) + 1
+      covered(self%blk_first(k):self%blk_last(k)) = &
+          covered(self%blk_first(k):self%blk_last(k)) + 1
     end do
     if (any(covered /= 1)) return
 

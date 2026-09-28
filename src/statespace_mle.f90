@@ -25,17 +25,20 @@ module statespace_mle
   implicit none
   private
 
-  public :: fit_options_t, fit_result_t, fit, fit_many, numerical_hessian, estimation_bias
+  public :: fit_options_t, fit_result_t, fit, fit_many, numerical_hessian, &
+            estimation_bias
 
   !> Gradient methods for `fit`.
-  integer, parameter, public :: GRADIENT_AUTO = 0       !< analytic if supported, else numerical
+  integer, parameter, public :: GRADIENT_AUTO = 0       !< analytic if supported,
+                                                        !! else numerical
   integer, parameter, public :: GRADIENT_NUMERICAL = 1
   integer, parameter, public :: GRADIENT_ANALYTIC = 2
 
   type :: fit_options_t
     integer :: maxiter = 500
     integer :: m = 10                 !< L-BFGS memory (number of corrections)
-    real(dp) :: factr = 1.0e7_dp      !< L-BFGS-B relative reduction tolerance / machine eps
+    real(dp) :: factr = 1.0e7_dp      !< L-BFGS-B relative reduction tolerance
+                                      !! / machine eps
     real(dp) :: pgtol = 1.0e-5_dp     !< projected gradient tolerance
     logical :: compute_cov = .true.
     integer :: iprint = -1            !< L-BFGS-B output level; < 0 is silent
@@ -44,15 +47,17 @@ module statespace_mle
 
   type :: fit_result_t
     real(dp), allocatable :: params(:)        !< constrained estimates
-    real(dp), allocatable :: cov_params(:, :) !< delta method from the unconstrained Hessian
+    real(dp), allocatable :: cov_params(:, :) !< delta method from the
+                                              !! unconstrained Hessian
     real(dp), allocatable :: bse(:)           !< standard errors
     real(dp) :: llf = 0.0_dp
     real(dp) :: scale = 1.0_dp                !< estimated scale if concentrated out
     real(dp) :: aic = 0.0_dp, bic = 0.0_dp
     integer :: niter = 0, nfev = 0
     logical :: converged = .false.
-    logical :: analytic_gradient = .false.    !< whether the analytic score was used (for at least
-                                              !< one parameter; see analytic_gradient)
+    logical :: analytic_gradient = .false.    !< whether the analytic score was
+                                              !! used (for at least one parameter;
+                                              !! see analytic_gradient)
     character(len=60) :: message = ''
   end type fit_result_t
 
@@ -91,7 +96,8 @@ contains
     else
       x = model%untransform_params(model%start_params())
     end if
-    allocate (g(k), l(k), u(k), nbd(k), iwa(3 * k), wa(2 * m * k + 5 * k + 11 * m * m + 8 * m))
+    allocate (g(k), l(k), u(k), nbd(k), iwa(3 * k), &
+              wa(2 * m * k + 5 * k + 11 * m * m + 8 * m))
     l = 0.0_dp
     u = 0.0_dp
     nbd = 0
@@ -222,7 +228,8 @@ contains
   !> the model cannot be evaluated are skipped with their pair and counted in
   !> `failed`. Uses the random number generator (`random_seed` for
   !> reproducibility). The model is left at psi_hat.
-  subroutine estimation_bias(model, fres, ndraw, bias_alpha, info, bias_V, antithetic, failed)
+  subroutine estimation_bias(model, fres, ndraw, bias_alpha, info, bias_V, antithetic, &
+                             failed)
     class(ssm_model_t), intent(inout) :: model
     type(fit_result_t), intent(in) :: fres
     integer, intent(in) :: ndraw
@@ -426,8 +433,8 @@ contains
       if (info /= SS_OK) return
       do j = 1, i - 1
         hess(i, j) = (llf_at([i, j], [h(i), h(j)]) - llf_at([i, j], [h(i), -h(j)]) &
-                      - llf_at([i, j], [-h(i), h(j)]) + llf_at([i, j], [-h(i), -h(j)])) &
-                     / (4.0_dp * h(i) * h(j))
+                      - llf_at([i, j], [-h(i), h(j)]) + llf_at([i, j], &
+            [-h(i), -h(j)])) / (4.0_dp * h(i) * h(j))
         if (info /= SS_OK) return
         hess(j, i) = hess(i, j)
       end do

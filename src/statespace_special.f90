@@ -113,7 +113,8 @@ contains
       betai = 1.0_dp
       return
     end if
-    bt = exp(log_gamma(a + b) - log_gamma(a) - log_gamma(b) + a * log(x) + b * log(1.0_dp - x))
+    bt = exp(log_gamma(a + b) - log_gamma(a) - log_gamma(b) + a * log(x) &
+             + b * log(1.0_dp - x))
     if (x < (a + 1.0_dp) / (a + b + 2.0_dp)) then
       betai = bt * beta_cfrac(a, b, x) / a
     else

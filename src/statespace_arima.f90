@@ -20,8 +20,8 @@
 module statespace_arima
   use statespace_kinds, only: dp
   use statespace_rep, only: INIT_DIFFUSE, INIT_STATIONARY
-  use statespace_model, only: constrain_positive, unconstrain_positive, constrain_stationary, &
-                              unconstrain_stationary
+  use statespace_model, only: constrain_positive, unconstrain_positive, &
+                              constrain_stationary, unconstrain_stationary
   use statespace_components, only: component_t, diff_variance
   implicit none
   private
@@ -64,7 +64,9 @@ contains
     real(dp), intent(in) :: y(:, :)
 
     self%p = size(y, 1); self%n = size(y, 2)
-    if (self%sd > 1) error stop "arima_t: seasonal differencing of order > 1 is not supported"
+    if (self%sd > 1) then
+      error stop "arima_t: seasonal differencing of order > 1 is not supported"
+    end if
     self%m = n_diff(self) + n_arma(self)
     self%r = 1
     self%k = self%ar + self%sar + self%ma + self%sma + 1
@@ -98,14 +100,16 @@ contains
   subroutine arima_fill(self, params, Z, H, T, R, Q)
     class(arima_t), intent(in) :: self
     real(dp), intent(in) :: params(:)
-    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), Q(:, :, :)
+    real(dp), intent(inout) :: Z(:, :, :), H(:, :, :), T(:, :, :), R(:, :, :), &
+                               Q(:, :, :)
     real(dp), allocatable :: phi(:), theta(:)
     integer :: nd, na, i, j, a0, ia, isa, ima, isma
 
     nd = n_diff(self); na = n_arma(self)
     ia = 0; isa = ia + self%ar; ima = isa + self%sar; isma = ima + self%ma
     ! phi(L) Phi(L^s) = 1 - sum phi*_k L^k,  theta(L) Theta(L^s) = 1 + sum theta*_k L^k
-    phi = polymul(params(ia + 1:ia + self%ar), params(isa + 1:isa + self%sar), max(self%s, 1), -1.0_dp)
+    phi = polymul(params(ia + 1:ia + self%ar), params(isa + 1:isa + self%sar), &
+                  max(self%s, 1), -1.0_dp)
     theta = polymul(params(ima + 1:ima + self%ma), params(isma + 1:isma + self%sma), &
                     max(self%s, 1), 1.0_dp)
 
@@ -130,7 +134,8 @@ contains
     end do
     if (self%sd == 1) Z(self%series, self%d + self%s, :) = 1.0_dp
     Z(self%series, a0 + 1, :) = 1.0_dp
-    ! Cumulative difference rows: Delta^(i-1) y_t = sum_(j >= i) Delta^(j-1) y_t-1 + Delta^d y_t
+    ! Cumulative difference rows:
+    !   Delta^(i-1) y_t = sum_(j >= i) Delta^(j-1) y_t-1 + Delta^d y_t
     do i = 1, self%d
       do j = i, self%d
         T(i, j, :) = 1.0_dp
@@ -157,7 +162,8 @@ contains
     call apply(self%ar, 0, .true., self%enforce_stationarity)
     call apply(self%sar, self%ar, .true., self%enforce_stationarity)
     call apply(self%ma, self%ar + self%sar, .false., self%enforce_invertibility)
-    call apply(self%sma, self%ar + self%sar + self%ma, .false., self%enforce_invertibility)
+    call apply(self%sma, self%ar + self%sar + self%ma, .false., &
+               self%enforce_invertibility)
     constrained(self%k) = constrain_positive(unconstrained(self%k))
 
   contains
@@ -168,7 +174,8 @@ contains
       logical, intent(in) :: is_ar, enforce
 
       if (n == 0 .or. .not. enforce) return
-      constrained(off + 1:off + n) = constrain_stationary(unconstrained(off + 1:off + n))
+      constrained(off + 1:off + n) = &
+          constrain_stationary(unconstrained(off + 1:off + n))
       if (.not. is_ar) constrained(off + 1:off + n) = -constrained(off + 1:off + n)
     end subroutine apply
   end function arima_transform
@@ -182,7 +189,8 @@ contains
     call apply(self%ar, 0, .true., self%enforce_stationarity)
     call apply(self%sar, self%ar, .true., self%enforce_stationarity)
     call apply(self%ma, self%ar + self%sar, .false., self%enforce_invertibility)
-    call apply(self%sma, self%ar + self%sar + self%ma, .false., self%enforce_invertibility)
+    call apply(self%sma, self%ar + self%sar + self%ma, .false., &
+               self%enforce_invertibility)
     unconstrained(self%k) = unconstrain_positive(constrained(self%k))
 
   contains
@@ -193,9 +201,11 @@ contains
 
       if (n == 0 .or. .not. enforce) return
       if (is_ar) then
-        unconstrained(off + 1:off + n) = unconstrain_stationary(constrained(off + 1:off + n))
+        unconstrained(off + 1:off + n) = &
+            unconstrain_stationary(constrained(off + 1:off + n))
       else
-        unconstrained(off + 1:off + n) = unconstrain_stationary(-constrained(off + 1:off + n))
+        unconstrained(off + 1:off + n) = &
+            unconstrain_stationary(-constrained(off + 1:off + n))
       end if
     end subroutine apply
   end function arima_untransform

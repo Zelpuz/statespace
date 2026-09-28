@@ -6,6 +6,7 @@ Each fixture is a plain-text file of named arrays. Every array is written as a
 header line ``name ndim d1 [d2 [d3]]`` followed by its values in Fortran
 (column-major) order, one per line.
 """
+
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -60,9 +61,15 @@ def diffuse_arrays(res):
 def ssm_inputs(ssm):
     """System matrices of a statsmodels representation, time-varying ones
     with a trailing time axis."""
-    return dict(Z=ssm["design"], H=ssm["obs_cov"], T=ssm["transition"],
-                R=ssm["selection"], Q=ssm["state_cov"], c=ssm["state_intercept"],
-                d=ssm["obs_intercept"])
+    return dict(
+        Z=ssm["design"],
+        H=ssm["obs_cov"],
+        T=ssm["transition"],
+        R=ssm["selection"],
+        Q=ssm["state_cov"],
+        c=ssm["state_intercept"],
+        d=ssm["obs_intercept"],
+    )
 
 
 def generic(name, y, Z, H, T, R, Q, c, d, a1=None, P1=None):
@@ -94,15 +101,37 @@ def nile():
     y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     params = [15099.0, 1469.1]  # sigma2_eps, sigma2_eta (DK section 2.2.4)
     one = np.ones((1, 1))
-    generic("nile_llevel_known", y[None, :], one, params[0] * one, one, one,
-            params[1] * one, np.zeros(1), np.zeros(1), np.zeros(1), 1e7 * one)
+    generic(
+        "nile_llevel_known",
+        y[None, :],
+        one,
+        params[0] * one,
+        one,
+        one,
+        params[1] * one,
+        np.zeros(1),
+        np.zeros(1),
+        np.zeros(1),
+        1e7 * one,
+    )
 
     # DK 2.7: observations 21-40 and 61-80 treated as missing
     ymiss = y.copy()
     ymiss[20:40] = np.nan
     ymiss[60:80] = np.nan
-    generic("nile_llevel_missing", ymiss[None, :], one, params[0] * one, one, one,
-            params[1] * one, np.zeros(1), np.zeros(1), np.zeros(1), 1e7 * one)
+    generic(
+        "nile_llevel_missing",
+        ymiss[None, :],
+        one,
+        params[0] * one,
+        one,
+        one,
+        params[1] * one,
+        np.zeros(1),
+        np.zeros(1),
+        np.zeros(1),
+        1e7 * one,
+    )
 
     # MLE with statsmodels' default approximate diffuse init (kappa = 1e6,
     # loglikelihood_burn = 1), and with exact diffuse init as in DK.
@@ -113,11 +142,20 @@ def nile():
         # tolerances stop early. Also record a tightly converged optimum.
         tight = mod.fit(disp=False, pgtol=1e-12, factr=10, maxiter=5000)
         tight = mod.filter(tight.params, cov_type="approx")
-        write_fixture(f"nile_llevel_mle_{tag}", {
-            "start_params": mod.start_params, "params": fit.params, "llf": fit.llf,
-            "params_tight": tight.params, "llf_tight": tight.llf,
-            "bse_tight": tight.bse, "cov_params_tight": tight.cov_params(),
-            "aic_tight": tight.aic, "bic_tight": tight.bic})
+        write_fixture(
+            f"nile_llevel_mle_{tag}",
+            {
+                "start_params": mod.start_params,
+                "params": fit.params,
+                "llf": fit.llf,
+                "params_tight": tight.params,
+                "llf_tight": tight.llf,
+                "bse_tight": tight.bse,
+                "cov_params_tight": tight.cov_params(),
+                "aic_tight": tight.aic,
+                "bic_tight": tight.bic,
+            },
+        )
         print(f"nile_llevel_mle_{tag}", fit.params, fit.llf)
 
 
@@ -160,7 +198,7 @@ def multivariate_missing():
     y[[0, 2], 10] = np.nan
     y[:, 15] = np.nan
     y[1, 20:25] = np.nan
-    y[:, n - 8:] = np.nan
+    y[:, n - 8 :] = np.nan
     generic("mv_missing", y, Z, H, T, R, Q, c, d, rng.standard_normal(m), spd(rng, m))
 
 
@@ -170,9 +208,14 @@ def diffuse_models():
 
     # Local level and local linear trend on Nile, exact diffuse (DK 5.2)
     for name, Z, T, Q in [
-            ("nile_llevel_exact", one, one, 1469.1 * one),
-            ("nile_lltrend_exact", np.array([[1.0, 0.0]]), np.array([[1.0, 1.0], [0.0, 1.0]]),
-             np.diag([1500.0, 10.0]))]:
+        ("nile_llevel_exact", one, one, 1469.1 * one),
+        (
+            "nile_lltrend_exact",
+            np.array([[1.0, 0.0]]),
+            np.array([[1.0, 1.0], [0.0, 1.0]]),
+            np.diag([1500.0, 10.0]),
+        ),
+    ]:
         m = T.shape[0]
         ks = KalmanSmoother(k_endog=1, k_states=m, k_posdef=m)
         ks.bind(y[None, :].copy(order="F"))
@@ -180,10 +223,26 @@ def diffuse_models():
         ks["selection"], ks["state_cov"] = np.eye(m), Q
         ks.initialize_diffuse()
         res = ks.smooth()
-        inputs = dict(y=y[None, :], Z=Z, H=15099.0 * one, T=T, R=np.eye(m), Q=Q,
-                      c=np.zeros(m), d=np.zeros(1), init_blocks=[[1, m, INIT_DIFFUSE]])
-        write_fixture(name, {**inputs, **results_arrays(res), **diffuse_arrays(res),
-                             "llf": res.llf_obs.sum()})
+        inputs = dict(
+            y=y[None, :],
+            Z=Z,
+            H=15099.0 * one,
+            T=T,
+            R=np.eye(m),
+            Q=Q,
+            c=np.zeros(m),
+            d=np.zeros(1),
+            init_blocks=[[1, m, INIT_DIFFUSE]],
+        )
+        write_fixture(
+            name,
+            {
+                **inputs,
+                **results_arrays(res),
+                **diffuse_arrays(res),
+                "llf": res.llf_obs.sum(),
+            },
+        )
         print(name, "nobs_diffuse", res.nobs_diffuse, "llf", res.llf_obs.sum())
 
     # Correlated H with several elements per period (see test notes on coordinates)
@@ -197,14 +256,16 @@ def diffuse_models():
     c = 0.1 * rng.standard_normal(m)
     d = rng.standard_normal(p)
     ymv = rng.standard_normal((p, n)) * 3
-    ymv[1, 0] = np.nan          # partly missing inside the diffuse period
+    ymv[1, 0] = np.nan  # partly missing inside the diffuse period
     # ... and the same with Z, T, H and d time-varying
     Ztv = Z[:, :, None] + 0.2 * rng.standard_normal((p, m, n))
     Ttv = T[:, :, None] + 0.05 * rng.standard_normal((m, m, n))
     Htv = np.stack([spd(rng, p, 0.5) for _ in range(n)], axis=-1)
     dtv = d[:, None] + 0.1 * rng.standard_normal((p, n))
-    for name, (Zx, Hx, Tx, dx) in [("mv_diffuse", (Z, H, T, d)),
-                                   ("mv_diffuse_timevarying", (Ztv, Htv, Ttv, dtv))]:
+    for name, (Zx, Hx, Tx, dx) in [
+        ("mv_diffuse", (Z, H, T, d)),
+        ("mv_diffuse_timevarying", (Ztv, Htv, Ttv, dtv)),
+    ]:
         ks = KalmanSmoother(k_endog=p, k_states=m, k_posdef=r)
         ks.bind(np.asfortranarray(ymv))
         ks["design"], ks["obs_cov"], ks["transition"] = Zx, Hx, Tx
@@ -212,26 +273,58 @@ def diffuse_models():
         ks["state_intercept"], ks["obs_intercept"] = c, dx
         ks.initialize_diffuse()
         res = ks.smooth()
-        inputs = dict(y=ymv, Z=Zx, H=Hx, T=Tx, R=R, Q=Q, c=c, d=dx,
-                      init_blocks=[[1, m, INIT_DIFFUSE]])
-        write_fixture(name, {**inputs, **results_arrays(res), **diffuse_arrays(res),
-                             "llf": res.llf_obs.sum()})
+        inputs = dict(
+            y=ymv,
+            Z=Zx,
+            H=Hx,
+            T=Tx,
+            R=R,
+            Q=Q,
+            c=c,
+            d=dx,
+            init_blocks=[[1, m, INIT_DIFFUSE]],
+        )
+        write_fixture(
+            name,
+            {
+                **inputs,
+                **results_arrays(res),
+                **diffuse_arrays(res),
+                "llf": res.llf_obs.sum(),
+            },
+        )
         print(name, "nobs_diffuse", res.nobs_diffuse, "llf", res.llf_obs.sum())
 
     # Trend + seasonal with missing data, and level + stationary AR(1) (mixed init)
     ymiss = y.copy()
     ymiss[[2, 3, 30, 31, 32, 60]] = np.nan
     for name, kwargs, params, blocks in [
-            ("uc_trend_seasonal_exact", dict(level="lltrend", seasonal=4),
-             [15000.0, 1500.0, 10.0, 200.0], [[1, 5, INIT_DIFFUSE]]),
-            ("uc_level_ar1_mixed", dict(level="llevel", autoregressive=1),
-             [15000.0, 1000.0, 500.0, 0.5], [[1, 1, INIT_DIFFUSE], [2, 2, INIT_STATIONARY]])]:
+        (
+            "uc_trend_seasonal_exact",
+            dict(level="lltrend", seasonal=4),
+            [15000.0, 1500.0, 10.0, 200.0],
+            [[1, 5, INIT_DIFFUSE]],
+        ),
+        (
+            "uc_level_ar1_mixed",
+            dict(level="llevel", autoregressive=1),
+            [15000.0, 1000.0, 500.0, 0.5],
+            [[1, 1, INIT_DIFFUSE], [2, 2, INIT_STATIONARY]],
+        ),
+    ]:
         mod = sm.tsa.UnobservedComponents(ymiss, use_exact_diffuse=True, **kwargs)
         mod.update(params)
         res = mod.ssm.smooth()
         inputs = dict(y=ymiss[None, :], **ssm_inputs(mod.ssm), init_blocks=blocks)
-        write_fixture(name, {**inputs, **results_arrays(res), **diffuse_arrays(res),
-                             "llf": res.llf_obs.sum()})
+        write_fixture(
+            name,
+            {
+                **inputs,
+                **results_arrays(res),
+                **diffuse_arrays(res),
+                "llf": res.llf_obs.sum(),
+            },
+        )
         print(name, "nobs_diffuse", res.nobs_diffuse, "llf", res.llf_obs.sum())
 
 
@@ -265,11 +358,21 @@ def ar2():
     tight = mod.filter(tight.params, cov_type="approx")
     x = np.array([0.7, -1.3, 2.0])
     from statsmodels.tsa.statespace.tools import constrain_stationary_univariate
-    write_fixture("ar2", {
-        "y": y[None, :], "params": params, "llf": mod.loglike(params),
-        "llf_obs": mod.loglikeobs(params),
-        "params_tight": tight.params, "llf_tight": tight.llf, "bse_tight": tight.bse,
-        "transform_in": x, "transform_out": constrain_stationary_univariate(x)})
+
+    write_fixture(
+        "ar2",
+        {
+            "y": y[None, :],
+            "params": params,
+            "llf": mod.loglike(params),
+            "llf_obs": mod.loglikeobs(params),
+            "params_tight": tight.params,
+            "llf_tight": tight.llf,
+            "bse_tight": tight.bse,
+            "transform_in": x,
+            "transform_out": constrain_stationary_univariate(x),
+        },
+    )
     print("ar2 llf =", mod.loglike(params), "tight", tight.params, tight.llf)
 
 
@@ -278,10 +381,11 @@ def read_fixture(name):
     while i < len(lines) and lines[i]:
         head = lines[i].split()
         ndim = int(head[1])
-        shape = tuple(int(x) for x in head[2:2 + ndim])
+        shape = tuple(int(x) for x in head[2 : 2 + ndim])
         size = int(np.prod(shape))
-        arrays[head[0]] = np.array([float(x) for x in lines[i + 1:i + 1 + size]]).reshape(
-            shape, order="F")
+        arrays[head[0]] = np.array(
+            [float(x) for x in lines[i + 1 : i + 1 + size]]
+        ).reshape(shape, order="F")
         i += 1 + size
     return arrays
 
@@ -289,13 +393,23 @@ def read_fixture(name):
 def build_from_fixture(cls, f):
     """A statsmodels representation of class `cls` for a fixture's model."""
     from statsmodels.tsa.statespace.initialization import Initialization
-    kinds = {INIT_KNOWN: "known", INIT_STATIONARY: "stationary", INIT_DIFFUSE: "diffuse"}
+
+    kinds = {
+        INIT_KNOWN: "known",
+        INIT_STATIONARY: "stationary",
+        INIT_DIFFUSE: "diffuse",
+    }
     p, n = f["y"].shape
     m, r = f["T"].shape[0], f["Q"].shape[0]
     ss = cls(k_endog=p, k_states=m, k_posdef=r)
     ss.bind(np.asfortranarray(f["y"]))
-    for key, arr in [("design", "Z"), ("obs_cov", "H"), ("transition", "T"),
-                     ("selection", "R"), ("state_cov", "Q")]:
+    for key, arr in [
+        ("design", "Z"),
+        ("obs_cov", "H"),
+        ("transition", "T"),
+        ("selection", "R"),
+        ("state_cov", "Q"),
+    ]:
         ss[key] = f[arr]
     ss["state_intercept"] = f["c"].reshape(m, -1)
     ss["obs_intercept"] = f["d"].reshape(p, -1)
@@ -315,9 +429,16 @@ def simulation_smoother_fixtures():
     """DK 4.9 simulation smoother on existing fixture models, with fixed N(0, 1)
     variates so the draws are deterministic."""
     from statsmodels.tsa.statespace.simulation_smoother import SimulationSmoother
+
     rng = np.random.default_rng(99)
-    for base in ["mv_invariant", "mv_timevarying", "mv_missing", "mv_stationary",
-                 "mv_diffuse", "uc_trend_seasonal_exact"]:
+    for base in [
+        "mv_invariant",
+        "mv_timevarying",
+        "mv_missing",
+        "mv_stationary",
+        "mv_diffuse",
+        "uc_trend_seasonal_exact",
+    ]:
         # (Not uc_level_ar1_mixed: with a singular P_star, statsmodels scales the
         # initial variate by the variance instead of its square root.)
         f = read_fixture(base)
@@ -328,42 +449,67 @@ def simulation_smoother_fixtures():
         u_eta = rng.standard_normal((r, n))
         u_init = rng.standard_normal(m)
         sim = ss.simulation_smoother()
-        sim.simulate(measurement_disturbance_variates=u_eps.ravel(order="F"),
-                     state_disturbance_variates=u_eta.ravel(order="F"),
-                     initial_state_variates=u_init)
-        write_fixture(f"sim_{base}", {
-            "u_eps": u_eps, "u_eta": u_eta, "u_init": u_init,
-            "generated_obs": sim.generated_obs, "generated_state": sim.generated_state,
-            "state": sim.simulated_state, "eps": sim.simulated_measurement_disturbance,
-            "eta": sim.simulated_state_disturbance})
+        sim.simulate(
+            measurement_disturbance_variates=u_eps.ravel(order="F"),
+            state_disturbance_variates=u_eta.ravel(order="F"),
+            initial_state_variates=u_init,
+        )
+        write_fixture(
+            f"sim_{base}",
+            {
+                "u_eps": u_eps,
+                "u_eta": u_eta,
+                "u_init": u_init,
+                "generated_obs": sim.generated_obs,
+                "generated_state": sim.generated_state,
+                "state": sim.simulated_state,
+                "eps": sim.simulated_measurement_disturbance,
+                "eta": sim.simulated_state_disturbance,
+            },
+        )
         print("sim", base)
 
 
 def smoothing_extras_fixtures():
     """DK 4.7 cross-time covariances of the smoothed state and DK 4.8 weights."""
     from statsmodels.tsa.statespace.tools import compute_smoothed_state_weights
-    for base in ["mv_invariant", "mv_timevarying", "mv_missing", "mv_stationary",
-                 "mv_diffuse", "uc_trend_seasonal_exact"]:
+
+    for base in [
+        "mv_invariant",
+        "mv_timevarying",
+        "mv_missing",
+        "mv_stationary",
+        "mv_diffuse",
+        "uc_trend_seasonal_exact",
+    ]:
         f = read_fixture(base)
         n = f["y"].shape[1]
         # compute_smoothed_state_weights needs model results, so wrap the
         # representation in a parameterless MLEModel.
         ks = build_from_fixture(KalmanSmoother, f)
-        mod = sm.tsa.statespace.MLEModel(f["y"].T, k_states=ks.k_states, k_posdef=ks.k_posdef)
+        mod = sm.tsa.statespace.MLEModel(
+            f["y"].T, k_states=ks.k_states, k_posdef=ks.k_posdef
+        )
         mod.ssm = ks
         res = mod.smooth([])
         weights, c_weights, prior_weights = compute_smoothed_state_weights(res)
-        write_fixture(f"extras_{base}", {
-            # Cov(alpha_t+1, alpha_t), t = 1..n-1
-            "autocov": res.smoothed_state_autocov[:, :, :n - 1],
-            # Cov(alpha_t, alpha_t+3), t = 1..n-3
-            "cov_shift3": np.transpose(res.smoother_results._smoothed_state_autocovariance(3, 0, n - 3),
-                                       (1, 2, 0)),
-            # Weight of y_j,i in alphahat_t,k as (k, i, t, j), and likewise
-            # c_j,l as (k, l, t, j) and a1_l as (k, l, t)
-            "weights": np.transpose(weights, (2, 3, 0, 1)),
-            "c_weights": np.transpose(c_weights, (2, 3, 0, 1)),
-            "prior_weights": np.transpose(prior_weights, (1, 2, 0))})
+        write_fixture(
+            f"extras_{base}",
+            {
+                # Cov(alpha_t+1, alpha_t), t = 1..n-1
+                "autocov": res.smoothed_state_autocov[:, :, : n - 1],
+                # Cov(alpha_t, alpha_t+3), t = 1..n-3
+                "cov_shift3": np.transpose(
+                    res.smoother_results._smoothed_state_autocovariance(3, 0, n - 3),
+                    (1, 2, 0),
+                ),
+                # Weight of y_j,i in alphahat_t,k as (k, i, t, j), and likewise
+                # c_j,l as (k, l, t, j) and a1_l as (k, l, t)
+                "weights": np.transpose(weights, (2, 3, 0, 1)),
+                "c_weights": np.transpose(c_weights, (2, 3, 0, 1)),
+                "prior_weights": np.transpose(prior_weights, (1, 2, 0)),
+            },
+        )
         print("extras", base)
 
 
@@ -399,38 +545,60 @@ def concentrated_fixtures():
     # Concentrated AR(2) MLE
     ya = read_fixture("ar2")["y"][0]
     fit = sm.tsa.SARIMAX(ya, order=(2, 0, 0), trend="n", concentrate_scale=True).fit(
-        disp=False, pgtol=1e-12, factr=10)
-    out.update({"ar2_params": fit.params, "ar2_scale": fit.scale, "ar2_llf": fit.llf,
-                "ar2_aic": fit.aic, "ar2_bic": fit.bic})
+        disp=False, pgtol=1e-12, factr=10
+    )
+    out.update(
+        {
+            "ar2_params": fit.params,
+            "ar2_scale": fit.scale,
+            "ar2_llf": fit.llf,
+            "ar2_aic": fit.aic,
+            "ar2_bic": fit.bic,
+        }
+    )
     write_fixture("concentrated", out)
-    print("concentrated", {k: v for k, v in out.items() if k.endswith(("llf", "scale"))})
+    print(
+        "concentrated", {k: v for k, v in out.items() if k.endswith(("llf", "scale"))}
+    )
 
 
 def diagnostics_fixtures():
     """DK 7.5 diagnostics: standardized one-step errors and the statsmodels
     tests on them."""
     from scipy import stats
+
     y = pd.read_csv("data/nile.csv")["volume"].to_numpy(dtype=float)
     mod = sm.tsa.UnobservedComponents(y, "llevel", use_exact_diffuse=True)
     res = mod.smooth([15099.0, 1469.1])
     lb = res.test_serial_correlation("ljungbox", lags=10)[0]
     jb = res.test_normality("jarquebera")[0]
     het = res.test_heteroskedasticity("breakvar")[0]
-    out = {"std_err": res.filter_results.standardized_forecasts_error,
-           "lb_stat": lb[0], "lb_pvalue": lb[1], "jb": jb, "het": het,
-           # special functions for the p-values
-           "chi2_sf_in": [3.7, 2.0, 25.0, 17.5], "chi2_sf_out": [
-               stats.chi2.sf(3.7, 2.0), stats.chi2.sf(25.0, 17.5)],
-           "f_cdf_in": [0.8, 33.0, 32.0], "f_cdf_out": stats.f.cdf(0.8, 33.0, 32.0)}
+    out = {
+        "std_err": res.filter_results.standardized_forecasts_error,
+        "lb_stat": lb[0],
+        "lb_pvalue": lb[1],
+        "jb": jb,
+        "het": het,
+        # special functions for the p-values
+        "chi2_sf_in": [3.7, 2.0, 25.0, 17.5],
+        "chi2_sf_out": [stats.chi2.sf(3.7, 2.0), stats.chi2.sf(25.0, 17.5)],
+        "f_cdf_in": [0.8, 33.0, 32.0],
+        "f_cdf_out": stats.f.cdf(0.8, 33.0, 32.0),
+    }
     # Multivariate standardization with missing values
     f = read_fixture("mv_missing")
     ks = build_from_fixture(KalmanSmoother, f)
     r = ks.filter()
     out["mv_std_err"] = r.standardized_forecasts_error
-    t = 2   # check the convention: lower Cholesky factor of F
+    t = 2  # check the convention: lower Cholesky factor of F
     L = np.linalg.cholesky(r.forecasts_error_cov[:, :, t])
-    print("mv std err convention (lower Cholesky) max diff:",
-          np.abs(np.linalg.solve(L, r.forecasts_error[:, t]) - r.standardized_forecasts_error[:, t]).max())
+    print(
+        "mv std err convention (lower Cholesky) max diff:",
+        np.abs(
+            np.linalg.solve(L, r.forecasts_error[:, t])
+            - r.standardized_forecasts_error[:, t]
+        ).max(),
+    )
     write_fixture("diagnostics", out)
     print("diagnostics", lb, jb, het)
 
@@ -441,10 +609,13 @@ def structural_fixtures():
     representation-invariant outputs: llf_obs and each component's smoothed
     signal."""
     from statsmodels.tsa.statespace.initialization import Initialization
+
     rng = np.random.default_rng(2024)
 
     def bsm_series(n, s):
-        mu = np.cumsum(np.cumsum(0.05 * rng.standard_normal(n)) + 0.3 * rng.standard_normal(n))
+        mu = np.cumsum(
+            np.cumsum(0.05 * rng.standard_normal(n)) + 0.3 * rng.standard_normal(n)
+        )
         gam = np.tile(rng.standard_normal(s), n // s + 1)[:n]
         return 10 + mu + gam + 0.5 * rng.standard_normal(n)
 
@@ -452,7 +623,12 @@ def structural_fixtures():
         if init is not None:
             mod.ssm.initialization = init
         res = mod.smooth(params)
-        out = {"y": mod.endog.T, "params": params, "llf": res.llf, "llf_obs": res.llf_obs}
+        out = {
+            "y": mod.endog.T,
+            "params": params,
+            "llf": res.llf,
+            "llf_obs": res.llf_obs,
+        }
         for key, comp in signals.items():
             out[key] = comp(res)["smoothed"]
         out.update(extra or {})
@@ -461,44 +637,87 @@ def structural_fixtures():
 
     yq = bsm_series(80, 4)
     yq[[5, 17, 18, 40]] = np.nan
-    record("uc_bsm_dummy",
-           sm.tsa.UnobservedComponents(yq, "lltrend", seasonal=4, use_exact_diffuse=True),
-           [0.25, 0.09, 0.0025, 0.01],
-           {"level": lambda r: r.level, "trend": lambda r: r.trend,
-            "seasonal": lambda r: r.seasonal})
+    record(
+        "uc_bsm_dummy",
+        sm.tsa.UnobservedComponents(yq, "lltrend", seasonal=4, use_exact_diffuse=True),
+        [0.25, 0.09, 0.0025, 0.01],
+        {
+            "level": lambda r: r.level,
+            "trend": lambda r: r.trend,
+            "seasonal": lambda r: r.seasonal,
+        },
+    )
     ym = bsm_series(96, 12)
-    record("uc_llevel_trig12",
-           sm.tsa.UnobservedComponents(ym, "llevel", freq_seasonal=[{"period": 12}],
-                                       use_exact_diffuse=True),
-           [0.25, 0.09, 0.004],
-           {"level": lambda r: r.level, "seasonal": lambda r: r.freq_seasonal[0]})
-    record("uc_smooth_trend_dummy",
-           sm.tsa.UnobservedComponents(yq, "smooth trend", seasonal=4, use_exact_diffuse=True),
-           [0.25, 0.0025, 0.01],
-           {"level": lambda r: r.level, "trend": lambda r: r.trend,
-            "seasonal": lambda r: r.seasonal})
+    record(
+        "uc_llevel_trig12",
+        sm.tsa.UnobservedComponents(
+            ym, "llevel", freq_seasonal=[{"period": 12}], use_exact_diffuse=True
+        ),
+        [0.25, 0.09, 0.004],
+        {"level": lambda r: r.level, "seasonal": lambda r: r.freq_seasonal[0]},
+    )
+    record(
+        "uc_smooth_trend_dummy",
+        sm.tsa.UnobservedComponents(
+            yq, "smooth trend", seasonal=4, use_exact_diffuse=True
+        ),
+        [0.25, 0.0025, 0.01],
+        {
+            "level": lambda r: r.level,
+            "trend": lambda r: r.trend,
+            "seasonal": lambda r: r.seasonal,
+        },
+    )
     # Damped cycle, initialized as stationary (DK 3.2.4)
-    yc = np.cumsum(0.3 * rng.standard_normal(100)) + 2 * np.sin(np.arange(100) * 2 * np.pi / 20) \
+    yc = (
+        np.cumsum(0.3 * rng.standard_normal(100))
+        + 2 * np.sin(np.arange(100) * 2 * np.pi / 20)
         + 0.5 * rng.standard_normal(100)
-    mod = sm.tsa.UnobservedComponents(yc, "llevel", cycle=True, damped_cycle=True,
-                                      stochastic_cycle=True, use_exact_diffuse=True)
+    )
+    mod = sm.tsa.UnobservedComponents(
+        yc,
+        "llevel",
+        cycle=True,
+        damped_cycle=True,
+        stochastic_cycle=True,
+        use_exact_diffuse=True,
+    )
     init = Initialization(mod.k_states)
     init.set((0, 1), "diffuse")
     init.set((1, 3), "stationary")
-    record("uc_llevel_cycle", mod, [0.25, 0.09, 0.3, 2 * np.pi / 20, 0.9],
-           {"level": lambda r: r.level, "cycle": lambda r: r.cycle}, init=init)
+    record(
+        "uc_llevel_cycle",
+        mod,
+        [0.25, 0.09, 0.3, 2 * np.pi / 20, 0.9],
+        {"level": lambda r: r.level, "cycle": lambda r: r.cycle},
+        init=init,
+    )
     # Regression and a step intervention with fixed coefficients (DK 3.2.5)
     n = 80
     x = rng.standard_normal(n)
     step = (np.arange(1, n + 1) >= 50).astype(float)
-    yr = np.cumsum(0.3 * rng.standard_normal(n)) + 2 * x + 3 * step + 0.5 * rng.standard_normal(n)
-    mod = sm.tsa.UnobservedComponents(yr, "llevel", exog=np.c_[x, step], mle_regression=False,
-                                      use_exact_diffuse=True)
+    yr = (
+        np.cumsum(0.3 * rng.standard_normal(n))
+        + 2 * x
+        + 3 * step
+        + 0.5 * rng.standard_normal(n)
+    )
+    mod = sm.tsa.UnobservedComponents(
+        yr, "llevel", exog=np.c_[x, step], mle_regression=False, use_exact_diffuse=True
+    )
     res = mod.smooth([0.25, 0.09])
-    write_fixture("uc_llevel_regression", {
-        "y": yr[None, :], "x": np.c_[x, step], "params": [0.25, 0.09], "llf": res.llf,
-        "llf_obs": res.llf_obs, "level": res.level["smoothed"],
-        "beta": res.smoothed_state[1:, -1]})
+    write_fixture(
+        "uc_llevel_regression",
+        {
+            "y": yr[None, :],
+            "x": np.c_[x, step],
+            "params": [0.25, 0.09],
+            "llf": res.llf,
+            "llf_obs": res.llf_obs,
+            "level": res.level["smoothed"],
+            "beta": res.smoothed_state[1:, -1],
+        },
+    )
     print("uc_llevel_regression llf", res.llf)
     # Random-walk coefficient (DK 3.15), from explicit matrices
     ks = KalmanSmoother(k_endog=1, k_states=2, k_posdef=2)
@@ -510,9 +729,16 @@ def structural_fixtures():
     ks["selection"], ks["state_cov"] = np.eye(2), np.diag([0.09, 0.01])
     ks.initialize_diffuse()
     res = ks.smooth()
-    write_fixture("uc_llevel_rw_regression", {
-        "y": yr[None, :], "x": x, "llf": res.llf_obs.sum(), "llf_obs": res.llf_obs,
-        "alphahat": res.smoothed_state})
+    write_fixture(
+        "uc_llevel_rw_regression",
+        {
+            "y": yr[None, :],
+            "x": x,
+            "llf": res.llf_obs.sum(),
+            "llf_obs": res.llf_obs,
+            "alphahat": res.smoothed_state,
+        },
+    )
     print("uc_llevel_rw_regression llf", res.llf_obs.sum())
 
 
@@ -520,6 +746,7 @@ def arima_fixtures():
     """ARMA/ARIMA (DK 3.4, 5.6) against SARIMAX with the differenced states
     exact diffuse (SARIMAX's default is approximate diffuse)."""
     from statsmodels.tsa.statespace.initialization import Initialization
+
     rng = np.random.default_rng(77)
     n = 120
     e = rng.standard_normal(n + 50)
@@ -541,20 +768,30 @@ def arima_fixtures():
         return mod
 
     for name, key, order, sorder, params in [
-            ("arima_201", "stationary", (2, 0, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
-            ("arima_211", "i1", (2, 1, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
-            ("arima_221", "i2", (2, 2, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
-            ("arima_111_011_4", "seasonal", (1, 1, 1), (0, 1, 1, 4), [0.5, 0.3, -0.4, 1.0])]:
+        ("arima_201", "stationary", (2, 0, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
+        ("arima_211", "i1", (2, 1, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
+        ("arima_221", "i2", (2, 2, 1), (0, 0, 0, 0), [0.5, 0.2, 0.4, 1.0]),
+        ("arima_111_011_4", "seasonal", (1, 1, 1), (0, 1, 1, 4), [0.5, 0.3, -0.4, 1.0]),
+    ]:
         y = series[key]
-        mod = sm.tsa.SARIMAX(y, order=order, seasonal_order=sorder, simple_differencing=False)
+        mod = sm.tsa.SARIMAX(
+            y, order=order, seasonal_order=sorder, simple_differencing=False
+        )
         n_diffuse = order[1] + sorder[1] * sorder[3]
         exact(mod, n_diffuse)
         res = mod.smooth(params)
-        out = {"y": y[None, :], "order": list(order) + list(sorder), "params": params,
-               "llf": res.llf, "llf_obs": res.llf_obs, "alphahat": res.smoothed_state}
+        out = {
+            "y": y[None, :],
+            "order": list(order) + list(sorder),
+            "params": params,
+            "llf": res.llf,
+            "llf_obs": res.llf_obs,
+            "alphahat": res.smoothed_state,
+        }
         if name == "arima_211":
-            fit = exact(sm.tsa.SARIMAX(y, order=order, simple_differencing=False),
-                        n_diffuse).fit(disp=False, pgtol=1e-12, factr=10, maxiter=5000)
+            fit = exact(
+                sm.tsa.SARIMAX(y, order=order, simple_differencing=False), n_diffuse
+            ).fit(disp=False, pgtol=1e-12, factr=10, maxiter=5000)
             # SARIMAX burns the first d observations in `llf`; the exact
             # diffuse log likelihood is the sum over all of them.
             out.update({"params_tight": fit.params, "llf_tight": fit.llf_obs.sum()})
@@ -564,28 +801,41 @@ def arima_fixtures():
     # Regression with ARMA(1,1) errors and a constant (DK 3.6.2, 5.6.4)
     z = rng.standard_normal(n)
     y = 3.0 + 1.5 * z + x
-    mod = sm.tsa.SARIMAX(y, exog=np.c_[np.ones(n), z], order=(1, 0, 1), mle_regression=False)
+    mod = sm.tsa.SARIMAX(
+        y, exog=np.c_[np.ones(n), z], order=(1, 0, 1), mle_regression=False
+    )
     # SARIMAX orders the states ARMA first, then the regression coefficients.
     init = Initialization(mod.k_states)
     init.set((0, 2), "stationary")
     init.set((2, 4), "diffuse")
     mod.ssm.initialization = init
     res = mod.smooth([0.6, 0.3, 1.0])
-    write_fixture("arima_regression", {"y": y[None, :], "z": z, "params": [0.6, 0.3, 1.0],
-                                       "llf": res.llf, "llf_obs": res.llf_obs,
-                                       "beta": res.smoothed_state[2:, -1]})
+    write_fixture(
+        "arima_regression",
+        {
+            "y": y[None, :],
+            "z": z,
+            "params": [0.6, 0.3, 1.0],
+            "llf": res.llf,
+            "llf_obs": res.llf_obs,
+            "beta": res.smoothed_state[2:, -1],
+        },
+    )
     print("arima_regression llf", res.llf)
 
 
 def spline_fixtures():
     """Cubic smoothing spline at irregular points (DK 3.9.2), from scipy."""
     from scipy.interpolate import make_smoothing_spline
+
     rng = np.random.default_rng(5)
     x = np.sort(rng.uniform(0, 10, 60))
     y = np.sin(x) + 0.3 * rng.standard_normal(60)
     lam = 0.5
     spl = make_smoothing_spline(x, y, lam=lam)
-    write_fixture("smoothing_spline", {"x": x, "y": y[None, :], "lam": lam, "fitted": spl(x)})
+    write_fixture(
+        "smoothing_spline", {"x": x, "y": y[None, :], "lam": lam, "fitted": spl(x)}
+    )
     print("smoothing_spline")
 
 

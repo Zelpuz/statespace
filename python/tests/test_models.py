@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
 from _fixtures import close, read_fixture
 
@@ -10,8 +9,12 @@ from _fixtures import close, read_fixture
 def test_bsm_dummy_matches_statsmodels():
     fx = read_fixture("uc_bsm_dummy")
     mod = ss.StructuralModel(fx["y"].T, [ss.Irregular(), ss.Trend(), ss.Seasonal(4)])
-    assert mod.param_names == ["sigma2.irregular", "sigma2.level", "sigma2.slope",
-                               "sigma2.seasonal"]
+    assert mod.param_names == [
+        "sigma2.irregular",
+        "sigma2.level",
+        "sigma2.slope",
+        "sigma2.seasonal",
+    ]
     res = mod.smooth(fx["params"])
     close(res.filter.llf_obs, fx["llf_obs"])
     close(res.smoothed_state[0], fx["level"])
@@ -20,8 +23,9 @@ def test_bsm_dummy_matches_statsmodels():
 
 def test_trig_seasonal():
     fx = read_fixture("uc_llevel_trig12")
-    mod = ss.StructuralModel(fx["y"].T, [ss.Irregular(), ss.Level(),
-                                         ss.Seasonal(12, form="trig")])
+    mod = ss.StructuralModel(
+        fx["y"].T, [ss.Irregular(), ss.Level(), ss.Seasonal(12, form="trig")]
+    )
     res = mod.smooth(fx["params"])
     close(res.filter.llf_obs, fx["llf_obs"])
     assert mod.k_states == 12
@@ -32,7 +36,9 @@ def test_arima_matches_sarimax():
     mod = ss.StructuralModel(fx["y"].T, [ss.ARIMA(order=(2, 1, 1))])
     res = mod.smooth(fx["params"])
     close(res.filter.llf_obs, fx["llf_obs"])
-    close(res.smoothed_state, fx["alphahat"].reshape(res.smoothed_state.shape, order="F"))
+    close(
+        res.smoothed_state, fx["alphahat"].reshape(res.smoothed_state.shape, order="F")
+    )
 
 
 def test_nile_mle():
@@ -62,7 +68,10 @@ def test_representation_at_params_and_options():
 
 def test_fit_many_matches_fit():
     rng = np.random.default_rng(3)
-    ys = [np.cumsum(0.3 * rng.standard_normal(80)) + rng.standard_normal(80) for _ in range(6)]
+    ys = [
+        np.cumsum(0.3 * rng.standard_normal(80)) + rng.standard_normal(80)
+        for _ in range(6)
+    ]
     comps = [ss.Irregular(), ss.Level()]
     many = ss.fit_many([ss.StructuralModel(y, comps) for y in ys])
     for y, r in zip(ys, many):
@@ -83,13 +92,13 @@ def test_cycle_component():
     assert mod.param_names[-2:] == ["frequency.cycle", "damping.cycle"]
     res = mod.smooth(fx["params"])
     close(res.filter.llf_obs, fx["llf_obs"])
-    close(res.smoothed_state[1], fx["cycle"])       # Z picks the first cycle state
+    close(res.smoothed_state[1], fx["cycle"])  # Z picks the first cycle state
 
 
 def test_regression_components():
     fx = read_fixture("uc_llevel_regression")
     x = fx["x"].copy()
-    x[:, 1] = (np.arange(x.shape[0]) >= 49).astype(float)   # step at t = 50
+    x[:, 1] = (np.arange(x.shape[0]) >= 49).astype(float)  # step at t = 50
     mod = ss.StructuralModel(fx["y"].T, [ss.Irregular(), ss.Level(), ss.Regression(x)])
     res = mod.smooth(fx["params"])
     close(res.filter.llf_obs, fx["llf_obs"])
@@ -97,12 +106,16 @@ def test_regression_components():
     close(res.smoothed_state[1:3, -1], fx["beta"])
 
     fx = read_fixture("uc_llevel_rw_regression")
-    mod = ss.StructuralModel(fx["y"].T, [ss.Irregular(), ss.Level(),
-                                         ss.Regression(fx["x"], random_walk=True)])
+    mod = ss.StructuralModel(
+        fx["y"].T,
+        [ss.Irregular(), ss.Level(), ss.Regression(fx["x"], random_walk=True)],
+    )
     assert mod.param_names[-1] == "sigma2.beta.1"
     res = mod.smooth([0.25, 0.09, 0.01])
     close(res.filter.llf_obs, fx["llf_obs"])
-    close(res.smoothed_state, fx["alphahat"].reshape(res.smoothed_state.shape, order="F"))
+    close(
+        res.smoothed_state, fx["alphahat"].reshape(res.smoothed_state.shape, order="F")
+    )
 
 
 def test_continuous_spline():
@@ -114,12 +127,18 @@ def test_continuous_spline():
 
 
 def test_common_levels_loadings():
-    y = read_fixture("mv_invariant")["y"].T          # (n, 2)
+    y = read_fixture("mv_invariant")["y"].T  # (n, 2)
     a2 = 0.7
     mod = ss.StructuralModel(
-        y, [ss.Irregular(), ss.Level(),
-            ss.Regression(np.ones(y.shape[0]), series=1, at_observations=True)],
-        loading=[[1.0], [0.0]], loading_free=[[False], [True]])
+        y,
+        [
+            ss.Irregular(),
+            ss.Level(),
+            ss.Regression(np.ones(y.shape[0]), series=1, at_observations=True),
+        ],
+        loading=[[1.0], [0.0]],
+        loading_free=[[False], [True]],
+    )
     assert mod.k_params == 4
     rep = ss.Representation(y, k_states=2, k_posdef=1)
     rep["design"] = [[1.0, 0.0], [a2, 1.0]]
@@ -139,8 +158,11 @@ def local_level_q(y):
     rep["selection"] = [[1.0]]
     rep["obs_cov"] = [[1.0]]
     rep.initialize_diffuse()
-    return ss.MappedModel(rep, 1, ["q"], start_params=[0.1]).map(0, "state_cov", 0, 0) \
+    return (
+        ss.MappedModel(rep, 1, ["q"], start_params=[0.1])
+        .map(0, "state_cov", 0, 0)
         .constrain(0, "positive")
+    )
 
 
 def test_concentrated_scale():
@@ -159,11 +181,17 @@ def test_concentrated_scale():
     rep["selection"] = [[1.0], [0.0]]
     rep["state_cov"] = [[1.0]]
     rep.initialize_stationary()
-    ar2 = ss.MappedModel(rep, 2, start_params=[0.0, 0.0]).map(0, "transition", 0, 0) \
-        .map(1, "transition", 0, 1).constrain([0, 1], "stationary")
+    ar2 = (
+        ss.MappedModel(rep, 2, start_params=[0.0, 0.0])
+        .map(0, "transition", 0, 0)
+        .map(1, "transition", 0, 1)
+        .constrain([0, 1], "stationary")
+    )
     ar2.concentrate_scale = True
     res = ar2.fit(factr=10.0, pgtol=1e-9)
     assert abs(res.llf - cx["ar2_llf"][0]) < 1e-8
     assert np.allclose(res.params, cx["ar2_params"], rtol=1e-4)
     assert np.isclose(res.scale, cx["ar2_scale"][0], rtol=1e-4)
-    assert np.allclose([res.aic, res.bic], [cx["ar2_aic"][0], cx["ar2_bic"][0]], rtol=1e-6)
+    assert np.allclose(
+        [res.aic, res.bic], [cx["ar2_aic"][0], cx["ar2_bic"][0]], rtol=1e-6
+    )

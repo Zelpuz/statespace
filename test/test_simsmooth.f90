@@ -41,7 +41,8 @@ contains
     character(len=32) :: buf
 
     write (buf, '(es10.3)') relerr(actual, expected)
-    call check(error, relerr(actual, expected) <= rtol, label//": relative error "//trim(buf))
+    call check(error, relerr(actual, expected) <= rtol, &
+               label//": relative error "//trim(buf))
   end subroutine check_close
 
   !> Same variates as statsmodels must give the same draws. eps is compared at
@@ -66,21 +67,22 @@ contains
     allocate (y(rep%k_endog, n), alpha(rep%k_states, n), eps(rep%k_endog, n), &
               eta(rep%k_posdef, n))
 
-    call simulate(rep, sx%get1('u_init'), sx%get2('u_eps'), sx%get2('u_eta'), y, alpha, eps, &
-                  eta, info)
+    call simulate(rep, sx%get1('u_init'), sx%get2('u_eps'), sx%get2('u_eta'), y, &
+                  alpha, eps, eta, info)
     call check(error, info, SS_OK, "simulate info")
     if (allocated(error)) return
     if (any(ieee_is_nan(rep%y))) then
       gen_state = sx%get2('generated_state')
-      call check_close(error, pack(y, .true.), sx%get1('generated_obs'), "generated_obs")
+      call check_close(error, pack(y, .true.), sx%get1('generated_obs'), &
+                       "generated_obs")
       if (allocated(error)) return
       call check_close(error, pack(alpha, .true.), pack(gen_state(:, 1:n), .true.), &
                        "generated_state")
       if (allocated(error)) return
     end if
 
-    call simulation_smoother(rep, sx%get1('u_init'), sx%get2('u_eps'), sx%get2('u_eta'), sim, &
-                             info)
+    call simulation_smoother(rep, sx%get1('u_init'), sx%get2('u_eps'), &
+                             sx%get2('u_eta'), sim, info)
     call check(error, info, SS_OK, "simulation_smoother info")
     if (allocated(error)) return
     call check_close(error, pack(sim%state, .true.), sx%get1('state'), "state")
@@ -205,7 +207,8 @@ contains
       do i = 1, p
         z = abs(se(i, t) - sres%epshat(i, t)) / sqrt(sres%epsvar(i, i, t) / ndraw)
         zmax = max(zmax, z)
-        z = abs(se2(i, t) - sres%epsvar(i, i, t)) / (sqrt(2.0_dp / ndraw) * sres%epsvar(i, i, t))
+        z = abs(se2(i, t) - sres%epsvar(i, i, t)) &
+            / (sqrt(2.0_dp / ndraw) * sres%epsvar(i, i, t))
         zmax = max(zmax, z)
       end do
     end do

@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
 from _fixtures import close, read_fixture
 

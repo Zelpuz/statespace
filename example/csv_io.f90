@@ -97,7 +97,8 @@ contains
 
     x = ieee_value(1.0_dp, ieee_quiet_nan)
     do j = 1, min(n, size(fields))
-      if (verify(trim(fields(j)), "0123456789.-+eE") /= 0 .or. len_trim(fields(j)) == 0) cycle
+      if (verify(trim(fields(j)), "0123456789.-+eE") /= 0 &
+          .or. len_trim(fields(j)) == 0) cycle
       read (fields(j), *, iostat=ios) x(j)
       if (ios /= 0) x(j) = ieee_value(1.0_dp, ieee_quiet_nan)
     end do

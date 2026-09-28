@@ -66,29 +66,59 @@ if __name__ == "__main__":
     ours = ss.StructuralModel(y, [ss.Irregular(), ss.Level()])
     theirs = sm.tsa.UnobservedComponents(y, "llevel", use_exact_diffuse=True)
     p = [1.0, 0.1]
-    row("loglike, local level, n = 1e5", best(lambda: ours.loglike(p)),
-        best(lambda: theirs.loglike(p)))
-    row("smooth, local level, n = 1e5", best(lambda: ours.smooth(p)),
-        best(lambda: theirs.smooth(p)))
+    row(
+        "loglike, local level, n = 1e5",
+        best(lambda: ours.loglike(p)),
+        best(lambda: theirs.loglike(p)),
+    )
+    row(
+        "smooth, local level, n = 1e5",
+        best(lambda: ours.smooth(p)),
+        best(lambda: theirs.smooth(p)),
+    )
 
     y = rw_noise(1000)
     ours = ss.StructuralModel(y, [ss.Irregular(), ss.Level(), ss.Seasonal(12, "trig")])
-    theirs = sm.tsa.UnobservedComponents(y, "llevel", freq_seasonal=[{"period": 12}],
-                                         use_exact_diffuse=True)
-    row("fit, level + trig seasonal, n = 1000", best(lambda: ours.fit(), 3),
-        best(lambda: theirs.fit(disp=False), 3))
+    theirs = sm.tsa.UnobservedComponents(
+        y, "llevel", freq_seasonal=[{"period": 12}], use_exact_diffuse=True
+    )
+    row(
+        "fit, level + trig seasonal, n = 1000",
+        best(lambda: ours.fit(), 3),
+        best(lambda: theirs.fit(disp=False), 3),
+    )
 
     ys = [rw_noise(100) for _ in range(1000)]
-    t_ours = best(lambda: ss.fit_many([ss.StructuralModel(v, [ss.Irregular(), ss.Level()])
-                                       for v in ys]), 3)
-    t_serial = best(lambda: [ss.StructuralModel(v, [ss.Irregular(), ss.Level()]).fit()
-                             for v in ys], 1)
-    t_sm = best(lambda: [sm.tsa.UnobservedComponents(v, "llevel", use_exact_diffuse=True)
-                         .fit(disp=False) for v in ys], 1)
+    t_ours = best(
+        lambda: ss.fit_many(
+            [ss.StructuralModel(v, [ss.Irregular(), ss.Level()]) for v in ys]
+        ),
+        3,
+    )
+    t_serial = best(
+        lambda: [ss.StructuralModel(v, [ss.Irregular(), ss.Level()]).fit() for v in ys],
+        1,
+    )
+    t_sm = best(
+        lambda: [
+            sm.tsa.UnobservedComponents(v, "llevel", use_exact_diffuse=True).fit(
+                disp=False
+            )
+            for v in ys
+        ],
+        1,
+    )
     row("1000 local level fits, n = 100 (fit_many)", t_ours, t_sm)
     row("1000 local level fits, n = 100 (serial)", t_serial, t_sm)
 
     y = rw_noise(1000)
-    row("fit, local level as a Python MLEModel", best(lambda: LocalLevel(y).fit(), 3),
-        best(lambda: sm.tsa.UnobservedComponents(y, "llevel", use_exact_diffuse=True)
-             .fit(disp=False), 3))
+    row(
+        "fit, local level as a Python MLEModel",
+        best(lambda: LocalLevel(y).fit(), 3),
+        best(
+            lambda: sm.tsa.UnobservedComponents(
+                y, "llevel", use_exact_diffuse=True
+            ).fit(disp=False),
+            3,
+        ),
+    )

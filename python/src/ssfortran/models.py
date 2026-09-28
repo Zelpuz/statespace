@@ -29,23 +29,29 @@ from statistics import NormalDist
 import numpy as np
 
 from ._lib import TRANSFORM_CB, UPDATE_CB, StateSpaceError, call, farray, ptr
-from .representation import _ARR, Representation, SmootherResults, FilterResults
+from .representation import _ARR, FilterResults, Representation, SmootherResults
 
 _COV = {None: 0, "none": 0, "diagonal": 1, "full": 2}
 _SEASONAL = {"dummy": 1, "trig": 2, "trigonometric": 2, "harrison-stevens": 3, "hs": 3}
 GRADIENT_AUTO, GRADIENT_NUMERICAL, GRADIENT_ANALYTIC = 0, 1, 2
-_GRADIENT = {"auto": GRADIENT_AUTO, "numerical": GRADIENT_NUMERICAL,
-             "analytic": GRADIENT_ANALYTIC}
+_GRADIENT = {
+    "auto": GRADIENT_AUTO,
+    "numerical": GRADIENT_NUMERICAL,
+    "analytic": GRADIENT_ANALYTIC,
+}
 
 
 def _cov(c):
     try:
         return _COV[c if c is None else c.lower()]
     except KeyError:
-        raise ValueError(f"covariance must be one of None, 'diagonal', 'full', not {c!r}")
+        raise ValueError(
+            f"covariance must be one of None, 'diagonal', 'full', not {c!r}"
+        )
 
 
 # ---------------------------------------------------------------- components
+
 
 @dataclass
 class Irregular:
@@ -63,6 +69,7 @@ class Irregular:
         :math:`H_t = w_t \\Sigma_\\varepsilon`, for unequally spaced or
         aggregated observations (DK §3.8).
     """
+
     cov: str = "diagonal"
     weights: object = None
 
@@ -80,6 +87,7 @@ class Level:
         Act on the observations rather than the signals when the model has
         loadings.
     """
+
     cov: str = "diagonal"
     at_observations: bool = False
 
@@ -100,6 +108,7 @@ class Trend:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     level_cov: str = "diagonal"
     slope_cov: str = "diagonal"
     at_observations: bool = False
@@ -121,6 +130,7 @@ class Seasonal:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     period: int
     form: str = "dummy"
     cov: str = "diagonal"
@@ -150,6 +160,7 @@ class Cycle:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     cov: str = "diagonal"
     damped: bool = True
     period_bounds: tuple = (2.0, None)
@@ -174,6 +185,7 @@ class Regression:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     exog: object
     random_walk: object = False
     series: int = 0
@@ -202,6 +214,7 @@ class ARIMA:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     order: tuple = (1, 0, 0)
     seasonal_order: tuple = (0, 0, 0, 0)
     series: int = 0
@@ -224,6 +237,7 @@ class ContinuousLevel:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     times: object
     at_observations: bool = False
 
@@ -243,11 +257,13 @@ class ContinuousTrend:
     at_observations : bool
         Act on the observations rather than the signals.
     """
+
     times: object
     at_observations: bool = False
 
 
 # ------------------------------------------------------------------ results
+
 
 @dataclass
 class ForecastResults:
@@ -260,6 +276,7 @@ class ForecastResults:
     var_pred_mean : ndarray, shape (steps, p, p)
         :math:`Var(y_{n+j} | Y_n)`.
     """
+
     predicted_mean: np.ndarray
     var_pred_mean: np.ndarray
 
@@ -283,7 +300,11 @@ class ForecastResults:
             Bounds, shaped as `predicted_mean`.
         """
         z = NormalDist().inv_cdf(1 - alpha / 2)
-        return self.predicted_mean - z * self.se_mean, self.predicted_mean + z * self.se_mean
+        return (
+            self.predicted_mean - z * self.se_mean,
+            self.predicted_mean + z * self.se_mean,
+        )
+
 
 @dataclass
 class FitResults:
@@ -319,6 +340,7 @@ class FitResults:
     message : str
         The optimizer's final message.
     """
+
     model: "Model" = field(repr=False)
     params: np.ndarray
     param_names: list
@@ -386,17 +408,28 @@ class FitResults:
             If `cov_params` is not available.
         """
         if not np.all(np.isfinite(self.cov_params)):
-            raise ValueError("estimation_bias needs cov_params (fit with compute_cov=True)")
+            raise ValueError(
+                "estimation_bias needs cov_params (fit with compute_cov=True)"
+            )
         m, n = self.model.k_states, self.model.nobs
         ba = np.empty((m, n), order="F")
         bV = np.empty((m, m, n), order="F") if variance else None
         p = farray(self.params, (self.model.k_params,))
         c = farray(self.cov_params)
         failed = ctypes.c_int()
-        self.model._call("ss_estimation_bias", self.model._h, ptr(p), ptr(c), int(ndraw),
-                         int(bool(antithetic)), 0 if seed is None else int(seed), ptr(ba),
-                         None if bV is None else ptr(bV), ctypes.byref(failed))
-        self.model.loglike(self.params)          # leave the model at the estimates
+        self.model._call(
+            "ss_estimation_bias",
+            self.model._h,
+            ptr(p),
+            ptr(c),
+            int(ndraw),
+            int(bool(antithetic)),
+            0 if seed is None else int(seed),
+            ptr(ba),
+            None if bV is None else ptr(bV),
+            ctypes.byref(failed),
+        )
+        self.model.loglike(self.params)  # leave the model at the estimates
         return (ba, bV) if variance else ba
 
     # -- per-period output ------------------------------------------------
@@ -457,8 +490,10 @@ class FitResults:
         """
         rep = self.model.representation(self.params)
         mean, cov = rep.forecast(int(steps))
-        return ForecastResults(predicted_mean=mean.T if mean.shape[0] > 1 else mean[0],
-                               var_pred_mean=np.moveaxis(cov, 2, 0))
+        return ForecastResults(
+            predicted_mean=mean.T if mean.shape[0] > 1 else mean[0],
+            var_pred_mean=np.moveaxis(cov, 2, 0),
+        )
 
     def forecast(self, steps):
         """Forecast past the end of the sample.
@@ -495,15 +530,21 @@ class FitResults:
             p-value).
         """
         from . import diagnostics as dg
+
         f = self.filter()
-        e = f.standardized_forecasts_error[0, f.diagnostic_start:]
+        e = f.standardized_forecasts_error[0, f.diagnostic_start :]
         e = e[~np.isnan(e)]
         lags = lags or max(1, min(10, e.size // 5))
         q, qp = dg.ljung_box(e, lags)
         jb, jbp, skew, kurt = dg.jarque_bera(e)
         h, hp = dg.breakvar(e)
-        return {"ljung_box": (lags, q[-1], qp[-1]), "jarque_bera": (jb, jbp),
-                "skew": skew, "kurtosis": kurt, "heteroskedasticity": (h, hp)}
+        return {
+            "ljung_box": (lags, q[-1], qp[-1]),
+            "jarque_bera": (jb, jbp),
+            "skew": skew,
+            "kurtosis": kurt,
+            "heteroskedasticity": (h, hp),
+        }
 
     def summary(self, alpha=0.05):
         """Summarize the estimates, the fit and the residual tests.
@@ -526,35 +567,49 @@ class FitResults:
         w = max(12, max(len(n) for n in self.param_names))
         lo_label, hi_label = f"[{alpha / 2:.3f}", f"{1 - alpha / 2:.3f}]"
         rule = "=" * (w + 72)
-        lines = [rule,
-                 f"{'Model:':<16}{type(self.model).__name__:<24}"
-                 f"{'Log likelihood:':<18}{self.llf:>14.4f}",
-                 f"{'Observations:':<16}{self.model.nobs:<24}{'AIC:':<18}{self.aic:>14.4f}",
-                 f"{'Diffuse periods:':<16}{f.nobs_diffuse:<24}{'BIC:':<18}{self.bic:>14.4f}"]
+        lines = [
+            rule,
+            f"{'Model:':<16}{type(self.model).__name__:<24}"
+            f"{'Log likelihood:':<18}{self.llf:>14.4f}",
+            f"{'Observations:':<16}{self.model.nobs:<24}{'AIC:':<18}{self.aic:>14.4f}",
+            f"{'Diffuse periods:':<16}{f.nobs_diffuse:<24}"
+            f"{'BIC:':<18}{self.bic:>14.4f}",
+        ]
         if self.model.concentrate_scale:
             lines.append(f"{'Scale:':<16}{self.scale:<24.6g}")
-        lines += [rule, f"{'':{w}}  {'coef':>12} {'std err':>11} {'z':>8} {'P>|z|':>7} "
-                        f"{lo_label:>12} {hi_label:>12}", "-" * (w + 72)]
+        lines += [
+            rule,
+            f"{'':{w}}  {'coef':>12} {'std err':>11} {'z':>8} {'P>|z|':>7} "
+            f"{lo_label:>12} {hi_label:>12}",
+            "-" * (w + 72),
+        ]
         for n, p, s in zip(self.param_names, self.params, self.bse):
             if np.isfinite(s) and s > 0:
                 zs = p / s
                 pv = math.erfc(abs(zs) / math.sqrt(2))
-                lines.append(f"{n:{w}}  {p:12.6g} {s:11.4g} {zs:8.3f} {pv:7.3f} "
-                             f"{p - z * s:12.6g} {p + z * s:12.6g}")
+                lines.append(
+                    f"{n:{w}}  {p:12.6g} {s:11.4g} {zs:8.3f} {pv:7.3f} "
+                    f"{p - z * s:12.6g} {p + z * s:12.6g}"
+                )
             else:
-                lines.append(f"{n:{w}}  {p:12.6g} {'':11} {'':8} {'':7} {'':12} {'':12}")
+                lines.append(
+                    f"{n:{w}}  {p:12.6g} {'':11} {'':8} {'':7} {'':12} {'':12}"
+                )
         d = self.diagnostics()
-        lb = d["ljung_box"]
-        lines += [rule,
-                  f"Ljung-Box Q({lb[0]}): {lb[1]:.3f} (p = {lb[2]:.3f})   "
-                  f"Jarque-Bera: {d['jarque_bera'][0]:.3f} (p = {d['jarque_bera'][1]:.3f})   "
-                  f"H: {d['heteroskedasticity'][0]:.3f} (p = {d['heteroskedasticity'][1]:.3f})",
-                  f"Optimizer: {self.message}", rule]
+        lb, jb, het = d["ljung_box"], d["jarque_bera"], d["heteroskedasticity"]
+        lines += [
+            rule,
+            f"Ljung-Box Q({lb[0]}): {lb[1]:.3f} (p = {lb[2]:.3f})   "
+            f"Jarque-Bera: {jb[0]:.3f} (p = {jb[1]:.3f})   "
+            f"H: {het[0]:.3f} (p = {het[1]:.3f})",
+            f"Optimizer: {self.message}",
+            rule,
+        ]
         return "\n".join(lines)
 
 
-
 # -------------------------------------------------------------------- models
+
 
 class Model:
     """Base class of models with parameters, held by the Fortran library.
@@ -597,7 +652,7 @@ class Model:
         buf = ctypes.create_string_buffer(width * self.k_params)
         self._call("ss_model_param_names", self._h, width, buf)
         raw = buf.raw.decode()
-        return [raw[i * width:(i + 1) * width].strip() for i in range(self.k_params)]
+        return [raw[i * width : (i + 1) * width].strip() for i in range(self.k_params)]
 
     @property
     def start_params(self):
@@ -764,8 +819,15 @@ class Model:
         maxc = 64
         first, size, at = (np.zeros(maxc, dtype=np.int32) for _ in range(3))
         nc = ctypes.c_int()
-        self._call("ss_model_components", self._h, maxc, ctypes.byref(nc), ptr(first), ptr(size),
-                   ptr(at))
+        self._call(
+            "ss_model_components",
+            self._h,
+            maxc,
+            ctypes.byref(nc),
+            ptr(first),
+            ptr(size),
+            ptr(at),
+        )
         if nc.value == 0:
             raise TypeError("components are defined for StructuralModel")
         rep = self.representation(params)
@@ -774,14 +836,19 @@ class Model:
         n = self.nobs
         if Z.ndim == 2:
             Z = np.repeat(Z[:, :, None], n, axis=2)
-        names = _component_names(self.components_spec if hasattr(self, "components_spec")
-                                 else [None] * nc.value)
+        names = _component_names(
+            self.components_spec
+            if hasattr(self, "components_spec")
+            else [None] * nc.value
+        )
         out, var = {}, {}
         for i in range(nc.value):
             b = slice(first[i], first[i] + size[i])
             if size[i] == 0:
                 sig = sm.smoothed_measurement_disturbance
-                v = np.diagonal(sm.smoothed_measurement_disturbance_cov, axis1=0, axis2=1).T
+                v = np.diagonal(
+                    sm.smoothed_measurement_disturbance_cov, axis1=0, axis2=1
+                ).T
             else:
                 Zb = Z[:, b, :]
                 sig = np.einsum("pmt,mt->pt", Zb, sm.smoothed_state[b])
@@ -808,8 +875,16 @@ class Model:
         """
         return self.representation(params).smooth()
 
-    def fit(self, start_params=None, maxiter=500, m=10, factr=1e7, pgtol=1e-5,
-            compute_cov=True, gradient="auto"):
+    def fit(
+        self,
+        start_params=None,
+        maxiter=500,
+        m=10,
+        factr=1e7,
+        pgtol=1e-5,
+        compute_cov=True,
+        gradient="auto",
+    ):
         """Estimate the parameters by maximum likelihood (DK §7.3).
 
         L-BFGS-B minimizes -loglike / n over the unconstrained parameters.
@@ -872,9 +947,18 @@ class Model:
         return _fit_results(self, h, code)
 
     def _lib_fit(self, start, maxiter, m, factr, pgtol, compute_cov, gradient, h):
-        return _call_code("ss_model_fit", self._h, start, int(maxiter), int(m), float(factr),
-                          float(pgtol), int(bool(compute_cov)), _GRADIENT[gradient],
-                          ctypes.byref(h))
+        return _call_code(
+            "ss_model_fit",
+            self._h,
+            start,
+            int(maxiter),
+            int(m),
+            float(factr),
+            float(pgtol),
+            int(bool(compute_cov)),
+            _GRADIENT[gradient],
+            ctypes.byref(h),
+        )
 
 
 class StructuralModel(Model):
@@ -917,8 +1001,10 @@ class StructuralModel(Model):
 
     >>> rng = np.random.default_rng(2)
     >>> season = np.tile([1.0, -0.5, 0.3, -0.8], 30)
-    >>> y = np.cumsum(0.2 * rng.standard_normal(120)) + season + 0.3 * rng.standard_normal(120)
-    >>> mod = ss.StructuralModel(y, [ss.Irregular(), ss.Level(), ss.Seasonal(4, "trig")])
+    >>> noise = 0.3 * rng.standard_normal(120)
+    >>> y = np.cumsum(0.2 * rng.standard_normal(120)) + season + noise
+    >>> comps = [ss.Irregular(), ss.Level(), ss.Seasonal(4, "trig")]
+    >>> mod = ss.StructuralModel(y, comps)
     >>> mod.param_names
     ['sigma2.irregular', 'sigma2.level', 'sigma2.seasonal']
     >>> res = mod.fit()
@@ -948,8 +1034,14 @@ class StructuralModel(Model):
                 Lf = None
                 if loading_free is not None:
                     Lf = np.asfortranarray(np.asarray(loading_free, dtype=np.int32))
-                call("ss_struct_build", b, L.shape[1], ptr(L), None if Lf is None else ptr(Lf),
-                     ctypes.byref(mh))
+                call(
+                    "ss_struct_build",
+                    b,
+                    L.shape[1],
+                    ptr(L),
+                    None if Lf is None else ptr(Lf),
+                    ctypes.byref(mh),
+                )
         finally:
             call("ss_struct_free", b)
         self.components_spec = list(components)
@@ -963,18 +1055,33 @@ class StructuralModel(Model):
             if c.weights is not None:
                 w = farray(c.weights, (n,))
                 keep.append(w)
-            call("ss_struct_add_irregular", b, _cov(c.cov), None if w is None else ptr(w))
+            call(
+                "ss_struct_add_irregular", b, _cov(c.cov), None if w is None else ptr(w)
+            )
         elif isinstance(c, Level):
             call("ss_struct_add_level", b, _cov(c.cov), at)
         elif isinstance(c, Trend):
             call("ss_struct_add_trend", b, _cov(c.level_cov), _cov(c.slope_cov), at)
         elif isinstance(c, Seasonal):
-            call("ss_struct_add_seasonal", b, int(c.period), _SEASONAL[c.form.lower()],
-                 _cov(c.cov), at)
+            call(
+                "ss_struct_add_seasonal",
+                b,
+                int(c.period),
+                _SEASONAL[c.form.lower()],
+                _cov(c.cov),
+                at,
+            )
         elif isinstance(c, Cycle):
             lo, hi = c.period_bounds
-            call("ss_struct_add_cycle", b, _cov(c.cov), int(bool(c.damped)), float(lo),
-                 0.0 if hi is None else float(hi), at)
+            call(
+                "ss_struct_add_cycle",
+                b,
+                _cov(c.cov),
+                int(bool(c.damped)),
+                float(lo),
+                0.0 if hi is None else float(hi),
+                at,
+            )
         elif isinstance(c, Regression):
             x = np.asarray(c.exog, dtype=np.float64)
             if x.ndim == 1:
@@ -982,20 +1089,48 @@ class StructuralModel(Model):
             if x.shape[0] != n:
                 raise ValueError(f"exog must have {n} rows")
             x = np.asfortranarray(x)
-            rw = np.broadcast_to(np.asarray(c.random_walk, dtype=np.int32), (x.shape[1],))
+            rw = np.broadcast_to(
+                np.asarray(c.random_walk, dtype=np.int32), (x.shape[1],)
+            )
             rw = np.ascontiguousarray(rw)
             keep += [x, rw]
-            call("ss_struct_add_regression", b, x.shape[1], ptr(x), ptr(rw), c.series + 1, at)
+            call(
+                "ss_struct_add_regression",
+                b,
+                x.shape[1],
+                ptr(x),
+                ptr(rw),
+                c.series + 1,
+                at,
+            )
         elif isinstance(c, ARIMA):
             p_, d, q = c.order
             P, D, Q, s = c.seasonal_order
-            call("ss_struct_add_arima", b, p_, d, q, P, D, Q, s, c.series + 1,
-                 int(c.enforce_stationarity), int(c.enforce_invertibility), at)
+            call(
+                "ss_struct_add_arima",
+                b,
+                p_,
+                d,
+                q,
+                P,
+                D,
+                Q,
+                s,
+                c.series + 1,
+                int(c.enforce_stationarity),
+                int(c.enforce_invertibility),
+                at,
+            )
         elif isinstance(c, (ContinuousLevel, ContinuousTrend)):
             t = farray(c.times, (n,))
             keep.append(t)
-            call("ss_struct_add_continuous", b, 1 if isinstance(c, ContinuousLevel) else 2,
-                 ptr(t), at)
+            call(
+                "ss_struct_add_continuous",
+                b,
+                1 if isinstance(c, ContinuousLevel) else 2,
+                ptr(t),
+                at,
+            )
         else:
             raise TypeError(f"unknown component {c!r}")
 
@@ -1091,8 +1226,16 @@ class MappedModel(Model):
         """
         if matrix not in _ARR or matrix == "endog":
             raise KeyError(matrix)
-        call("ss_mapped_entry", self._h, int(param) + 1, _ARR[matrix], int(i) + 1, int(j) + 1,
-             0 if t is None else int(t) + 1, float(coef))
+        call(
+            "ss_mapped_entry",
+            self._h,
+            int(param) + 1,
+            _ARR[matrix],
+            int(i) + 1,
+            int(j) + 1,
+            0 if t is None else int(t) + 1,
+            float(coef),
+        )
         return self
 
     def cov(self, first_param, matrix, offset, dim):
@@ -1119,8 +1262,14 @@ class MappedModel(Model):
         MappedModel
             This model, to chain calls.
         """
-        call("ss_mapped_block", self._h, _ARR[matrix], int(offset) + 1, int(dim),
-             int(first_param) + 1)
+        call(
+            "ss_mapped_block",
+            self._h,
+            _ARR[matrix],
+            int(offset) + 1,
+            int(dim),
+            int(first_param) + 1,
+        )
         return self
 
     def constrain(self, params, kind, bounds=(0.0, 0.0)):
@@ -1153,8 +1302,15 @@ class MappedModel(Model):
         if params != list(range(params[0], params[-1] + 1)):
             raise ValueError("constrain needs consecutive parameters")
         lo, hi = bounds
-        call("ss_mapped_group", self._h, self._GROUPS[kind], params[0] + 1, params[-1] + 1,
-             float(lo), float(hi))
+        call(
+            "ss_mapped_group",
+            self._h,
+            self._GROUPS[kind],
+            params[0] + 1,
+            params[-1] + 1,
+            float(lo),
+            float(hi),
+        )
         return self
 
 
@@ -1226,13 +1382,19 @@ class MLEModel(Model):
         tr = cls.transform_params is not Model.transform_params
         ut = cls.untransform_params is not Model.untransform_params
         self._transform_cb = TRANSFORM_CB(self._transform_trampoline) if tr else None
-        self._untransform_cb = TRANSFORM_CB(self._untransform_trampoline) if ut else None
+        self._untransform_cb = (
+            TRANSFORM_CB(self._untransform_trampoline) if ut else None
+        )
         h = ctypes.c_void_p()
-        call("ss_callback_new", template._h, int(k_params),
-             ctypes.cast(self._update_cb, ctypes.c_void_p),
-             None if not tr else ctypes.cast(self._transform_cb, ctypes.c_void_p),
-             None if not ut else ctypes.cast(self._untransform_cb, ctypes.c_void_p),
-             ctypes.byref(h))
+        call(
+            "ss_callback_new",
+            template._h,
+            int(k_params),
+            ctypes.cast(self._update_cb, ctypes.c_void_p),
+            None if not tr else ctypes.cast(self._transform_cb, ctypes.c_void_p),
+            None if not ut else ctypes.cast(self._untransform_cb, ctypes.c_void_p),
+            ctypes.byref(h),
+        )
         self._attach(h)
         self._ssm = Model.ssm.fget(self)
 
@@ -1296,7 +1458,7 @@ class MLEModel(Model):
         try:
             fn()
             return 0
-        except BaseException as e:   # reported when control returns to Python
+        except BaseException as e:  # reported when control returns to Python
             self._cb_error = e
             return 1
 
@@ -1307,19 +1469,31 @@ class MLEModel(Model):
     def _transform_trampoline(self, k, x, out):
         def f():
             np.ctypeslib.as_array(out, (k,))[:] = self.transform_params(
-                np.ctypeslib.as_array(x, (k,)).copy())
+                np.ctypeslib.as_array(x, (k,)).copy()
+            )
+
         return self._run(f)
 
     def _untransform_trampoline(self, k, x, out):
         def f():
             np.ctypeslib.as_array(out, (k,))[:] = self.untransform_params(
-                np.ctypeslib.as_array(x, (k,)).copy())
+                np.ctypeslib.as_array(x, (k,)).copy()
+            )
+
         return self._run(f)
 
 
-_KIND = {"Irregular": "irregular", "Level": "level", "Trend": "trend", "Seasonal": "seasonal",
-         "Cycle": "cycle", "Regression": "regression", "ARIMA": "arima",
-         "ContinuousLevel": "level", "ContinuousTrend": "trend"}
+_KIND = {
+    "Irregular": "irregular",
+    "Level": "level",
+    "Trend": "trend",
+    "Seasonal": "seasonal",
+    "Cycle": "cycle",
+    "Regression": "regression",
+    "ARIMA": "arima",
+    "ContinuousLevel": "level",
+    "ContinuousTrend": "trend",
+}
 
 
 def _component_names(specs):
@@ -1333,8 +1507,10 @@ def _component_names(specs):
 
 # ------------------------------------------------------------------- fitting
 
-def fit_many(models, maxiter=500, m=10, factr=1e7, pgtol=1e-5, compute_cov=True,
-             gradient="auto"):
+
+def fit_many(
+    models, maxiter=500, m=10, factr=1e7, pgtol=1e-5, compute_cov=True, gradient="auto"
+):
     """Fit independent models in parallel.
 
     The library fits the models on OpenMP threads, with the GIL released.
@@ -1391,8 +1567,19 @@ def fit_many(models, maxiter=500, m=10, factr=1e7, pgtol=1e-5, compute_cov=True,
     hs = (ctypes.c_void_p * nm)(*[mod._h.value for mod in models])
     fhs = (ctypes.c_void_p * nm)()
     infos = (ctypes.c_int * nm)()
-    call("ss_fit_many", nm, hs, int(maxiter), int(m), float(factr), float(pgtol),
-         int(bool(compute_cov)), _GRADIENT[gradient], fhs, infos)
+    call(
+        "ss_fit_many",
+        nm,
+        hs,
+        int(maxiter),
+        int(m),
+        float(factr),
+        float(pgtol),
+        int(bool(compute_cov)),
+        _GRADIENT[gradient],
+        fhs,
+        infos,
+    )
     out = []
     for mod, fh, code in zip(models, fhs, infos):
         out.append(None if not fh else _fit_results(mod, ctypes.c_void_p(fh), code))
@@ -1401,6 +1588,7 @@ def fit_many(models, maxiter=500, m=10, factr=1e7, pgtol=1e-5, compute_cov=True,
 
 def _call_code(name, *args):
     from ._lib import lib
+
     return getattr(lib, name)(*args)
 
 
@@ -1426,10 +1614,22 @@ def _fit_results(model, h, code):
         call("ss_fit_message", h, len(buf), buf)
     finally:
         call("ss_fit_free", h)
-    return FitResults(model=model, params=params, param_names=model.param_names, bse=bse,
-                      cov_params=cov, llf=llf, scale=scale, aic=aic, bic=bic, niter=niter,
-                      nfev=nfev, converged=bool(conv), analytic_gradient=bool(ag),
-                      message=buf.value.decode().strip())
+    return FitResults(
+        model=model,
+        params=params,
+        param_names=model.param_names,
+        bse=bse,
+        cov_params=cov,
+        llf=llf,
+        scale=scale,
+        aic=aic,
+        bic=bic,
+        niter=niter,
+        nfev=nfev,
+        converged=bool(conv),
+        analytic_gradient=bool(ag),
+        message=buf.value.decode().strip(),
+    )
 
 
 def _free(routine, handle):

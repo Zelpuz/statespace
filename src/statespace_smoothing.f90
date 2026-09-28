@@ -19,7 +19,8 @@ module statespace_smoothing
 
   public :: innovation_transition, smoothed_state_cov_between, smoothed_state_autocov
   public :: smoothed_state_weights, fast_state_smoother, classical_state_smoother
-  public :: two_filter_smoother, conventional_gain, update_smoothed, fixed_point_smoother
+  public :: two_filter_smoother, conventional_gain, update_smoothed, &
+            fixed_point_smoother
   public :: fixed_lag_smoother, filtered_state_weights, whittle_smoother
 
 contains
@@ -93,7 +94,8 @@ contains
     if (info /= SS_OK) return
     Finv = 0.0_dp
     Finv(idx, idx) = Fo
-    K = matmul(rep%T(:, :, it), matmul(fres%P(:, :, t), matmul(transpose(rep%Z(:, :, iz)), Finv)))
+    K = matmul(rep%T(:, :, it), matmul(fres%P(:, :, t), &
+                                       matmul(transpose(rep%Z(:, :, iz)), Finv)))
   end subroutine conventional_gain
 
   !> Z_t' F_t^-1 v_t (missing elements dropped), Z_t' F_t^-1 Z_t and
@@ -264,7 +266,8 @@ contains
     real(dp), intent(out), contiguous :: Wa(:, :, :, :)     !< (m, p, n, n)
     real(dp), intent(out), contiguous :: Watt(:, :, :, :)   !< (m, p, n, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: K(:, :), Finv(:, :), zfv(:), ZFZ(:, :), L(:, :), A(:, :), PZF(:, :)
+    real(dp), allocatable :: K(:, :), Finv(:, :), zfv(:), ZFZ(:, :), L(:, :), A(:, :), &
+                             PZF(:, :)
     integer :: m, p, n, t, j, iz
 
     m = rep%k_states; p = rep%k_endog; n = rep%nobs
@@ -298,8 +301,9 @@ contains
   !> order conditions of the joint density of alpha and Y, which for
   !> t = n, ..., 2 give the backward recursion
   !>
-  !>   T_t-1 alphahat_t-1 = alphahat_t - c_t-1 - W_t-1 [ Z_o' H_oo^-1 (y_o - d_o - Z_o alphahat_t)
-  !>                        + T_t' W_t^-1 (alphahat_t+1 - c_t - T_t alphahat_t) ]
+  !>   T_t-1 alphahat_t-1 = alphahat_t - c_t-1
+  !>       - W_t-1 [ Z_o' H_oo^-1 (y_o - d_o - Z_o alphahat_t)
+  !>                 + T_t' W_t^-1 (alphahat_t+1 - c_t - T_t alphahat_t) ]
   !>
   !> with W = R Q R', started from alphahat_n = a_n|n and
   !> alphahat_n+1 = c_n + T_n alphahat_n (for the local level model this is
@@ -312,7 +316,8 @@ contains
     type(filter_result_t), intent(in) :: fres
     real(dp), intent(out), contiguous :: alphahat(:, :)     !< (m, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: anext(:), Winv(:, :), Wprev(:, :), Hinv(:, :), rhs(:, :), e(:), Tt(:, :)
+    real(dp), allocatable :: anext(:), Winv(:, :), Wprev(:, :), Hinv(:, :), rhs(:, :), &
+                             e(:), Tt(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: logdet
     integer :: m, n, t, i, iz, ih, id, it, ic, itp, icp
@@ -334,16 +339,19 @@ contains
       Winv = state_noise(rep, t)
       call chol_inv(Winv, logdet, info)
       if (info /= SS_OK) return
-      e = matmul(transpose(rep%T(:, :, it)), matmul(Winv, anext - rep%c(:, ic) &
-                                                    - matmul(rep%T(:, :, it), alphahat(:, t))))
+      e = matmul(transpose(rep%T(:, :, it)), matmul(Winv, &
+                                                    anext - rep%c(:, ic) &
+                                                    - matmul(rep%T(:, :, it), &
+          alphahat(:, t))))
       ! + Z_o' H_oo^-1 (y_o - d_o - Z_o alphahat_t)
       idx = pack([(i, i=1, rep%k_endog)], .not. ieee_is_nan(rep%y(:, t)))
       if (size(idx) > 0) then
         Hinv = rep%H(idx, idx, ih)
         call chol_inv(Hinv, logdet, info)
         if (info /= SS_OK) return
-        e = e + matmul(transpose(rep%Z(idx, :, iz)), matmul(Hinv, rep%y(idx, t) - rep%d(idx, id) &
-                                                              - matmul(rep%Z(idx, :, iz), alphahat(:, t))))
+        e = e + matmul(transpose(rep%Z(idx, :, iz)), &
+                       matmul(Hinv, rep%y(idx, t) - rep%d(idx, id) &
+                              - matmul(rep%Z(idx, :, iz), alphahat(:, t))))
       end if
       ! T_t-1 alphahat_t-1 = alphahat_t - c_t-1 - W_t-1 e
       Wprev = state_noise(rep, t - 1)
@@ -379,17 +387,21 @@ contains
     type(filter_result_t), intent(in) :: fres
     real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: r(:, :), r0(:), r1(:), u(:), vz(:), K0(:), K1(:), tmp(:), RQR(:, :)
-    real(dp), allocatable :: RQ(:, :), Zo(:, :), vo(:), F1(:, :), F2(:, :), L0(:, :), L1(:, :)
+    real(dp), allocatable :: r(:, :), r0(:), r1(:), u(:), vz(:), K0(:), K1(:), tmp(:), &
+                             RQR(:, :)
+    real(dp), allocatable :: RQ(:, :), Zo(:, :), vo(:), F1(:, :), F2(:, :), L0(:, :), &
+                             L1(:, :)
     real(dp) :: v, Fs, Fi, k0r, k1r
     logical :: diffuse
     integer :: m, n, t, i, it, iz, ir, iq, ic
 
     info = SS_ERR_DIM
-    if (fres%nobs /= rep%nobs .or. any(shape(alphahat) /= [rep%k_states, rep%nobs])) return
+    if (fres%nobs /= rep%nobs &
+        .or. any(shape(alphahat) /= [rep%k_states, rep%nobs])) return
     info = SS_OK
     m = rep%k_states; n = rep%nobs
-    allocate (r(m, 0:n), r0(m), r1(m), tmp(m), RQR(m, m), RQ(m, rep%k_posdef), source=0.0_dp)
+    allocate (r(m, 0:n), r0(m), r1(m), tmp(m), RQR(m, m), RQ(m, rep%k_posdef), &
+              source=0.0_dp)
 
     do t = n, 1, -1
       it = tidx(size(rep%T, 3), t)
@@ -451,7 +463,8 @@ contains
       call gemm('N', 'N', 1.0_dp, rep%R(:, :, ir), rep%Q(:, :, iq), 0.0_dp, RQ)
       call gemm('N', 'T', 1.0_dp, RQ, rep%R(:, :, ir), 0.0_dp, RQR)
       alphahat(:, t + 1) = rep%c(:, ic)
-      call gemv('N', 1.0_dp, rep%T(:, :, it), alphahat(:, t), 1.0_dp, alphahat(:, t + 1))
+      call gemv('N', 1.0_dp, rep%T(:, :, it), alphahat(:, t), 1.0_dp, &
+                alphahat(:, t + 1))
       call gemv('N', 1.0_dp, RQR, r(:, t), 1.0_dp, alphahat(:, t + 1))
     end do
   end subroutine fast_state_smoother
@@ -473,8 +486,8 @@ contains
     integer :: m, n, t, it
 
     info = SS_ERR_DIM
-    if (fres%nobs /= rep%nobs .or. any(shape(alphahat) /= [rep%k_states, rep%nobs]) .or. &
-        any(shape(V) /= [rep%k_states, rep%k_states, rep%nobs])) return
+    if (fres%nobs /= rep%nobs .or. any(shape(alphahat) /= [rep%k_states, rep%nobs]) &
+        .or. any(shape(V) /= [rep%k_states, rep%k_states, rep%nobs])) return
     info = SS_ERR_UNSUPPORTED
     if (fres%nobs_diffuse > 0) return
     info = SS_OK
@@ -489,7 +502,8 @@ contains
       call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), fres%Ptt(:, :, t), 0.0_dp, TP)
       J = transpose(psd_solve(fres%P(:, :, t + 1), TP))
       alphahat(:, t) = fres%att(:, t)
-      call gemv('N', 1.0_dp, J, alphahat(:, t + 1) - fres%a(:, t + 1), 1.0_dp, alphahat(:, t))
+      call gemv('N', 1.0_dp, J, alphahat(:, t + 1) - fres%a(:, t + 1), 1.0_dp, &
+                alphahat(:, t))
       D = V(:, :, t + 1) - fres%P(:, :, t + 1)
       call gemm('N', 'N', 1.0_dp, J, D, 0.0_dp, JD)
       V(:, :, t) = fres%Ptt(:, :, t)
@@ -521,15 +535,16 @@ contains
     real(dp), intent(out), contiguous :: alphahat(:, :)    !< (m, n)
     real(dp), intent(out), contiguous :: V(:, :, :)        !< (m, m, n)
     integer, intent(out) :: info
-    real(dp), allocatable :: Iinfo(:, :), ivec(:), Hinv(:, :), Zo(:, :), ZtHinv(:, :), A(:, :)
+    real(dp), allocatable :: Iinfo(:, :), ivec(:), Hinv(:, :), Zo(:, :), ZtHinv(:, :), &
+                             A(:, :)
     real(dp), allocatable :: B(:, :), RQ(:, :), G(:, :), W(:, :), rhs(:, :)
     integer, allocatable :: idx(:)
     real(dp) :: logdet
     integer :: m, n, t, i, iz, ih, id, it, ir, iq, ic
 
     info = SS_ERR_DIM
-    if (fres%nobs /= rep%nobs .or. any(shape(alphahat) /= [rep%k_states, rep%nobs]) .or. &
-        any(shape(V) /= [rep%k_states, rep%k_states, rep%nobs])) return
+    if (fres%nobs /= rep%nobs .or. any(shape(alphahat) /= [rep%k_states, rep%nobs]) &
+        .or. any(shape(V) /= [rep%k_states, rep%k_states, rep%nobs])) return
     info = SS_ERR_UNSUPPORTED
     if (fres%nobs_diffuse > 0) return
     info = SS_OK
@@ -552,8 +567,10 @@ contains
         call solve(A, rhs, info)
         if (info /= SS_OK) return
         G = eye(m) - matmul(matmul(Iinfo, RQ), rhs)
-        ivec = matmul(transpose(rep%T(:, :, it)), matmul(G, ivec - matmul(Iinfo, rep%c(:, ic))))
-        Iinfo = matmul(transpose(rep%T(:, :, it)), matmul(matmul(G, Iinfo), rep%T(:, :, it)))
+        ivec = matmul(transpose(rep%T(:, :, it)), &
+                      matmul(G, ivec - matmul(Iinfo, rep%c(:, ic))))
+        Iinfo = matmul(transpose(rep%T(:, :, it)), &
+                       matmul(matmul(G, Iinfo), rep%T(:, :, it)))
         call symmetrize(Iinfo)
       end if
 
@@ -576,7 +593,8 @@ contains
       call solve(B, W, info)
       if (info /= SS_OK) return
       alphahat(:, t) = fres%a(:, t) + matmul(fres%P(:, :, t), &
-                                             matmul(W, ivec - matmul(Iinfo, fres%a(:, t))))
+                                             matmul(W, ivec - matmul(Iinfo, &
+          fres%a(:, t))))
       V(:, :, t) = matmul(fres%P(:, :, t), W)
       call symmetrize(V(:, :, t))
     end do

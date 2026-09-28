@@ -62,7 +62,8 @@ contains
     type(augmented_result_t), intent(out) :: res
     integer, intent(out) :: info
     type(ssm_rep_t) :: star
-    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), L(:, :), D(:), FV(:, :), vz(:)
+    real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :), L(:, :), D(:), FV(:, :), &
+                             vz(:)
     real(dp) :: logdetS
     integer :: p, m, n, k, t, j, iz, it
 
@@ -100,9 +101,12 @@ contains
         iz = tidx(size(rep%Z, 3), t)
         it = tidx(size(rep%T, 3), t)
         ! V^A = -Z A,  A_t+1 = T A + K V^A
-        call gemm('N', 'N', -1.0_dp, rep%Z(:, :, iz), res%A(:, :, t), 0.0_dp, res%VA(:, :, t))
-        call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), res%A(:, :, t), 0.0_dp, res%A(:, :, t + 1))
-        call gemm('N', 'N', 1.0_dp, f%K(:, :, t), res%VA(:, :, t), 1.0_dp, res%A(:, :, t + 1))
+        call gemm('N', 'N', -1.0_dp, rep%Z(:, :, iz), res%A(:, :, t), 0.0_dp, &
+                  res%VA(:, :, t))
+        call gemm('N', 'N', 1.0_dp, rep%T(:, :, it), res%A(:, :, t), 0.0_dp, &
+                  res%A(:, :, t + 1))
+        call gemm('N', 'N', 1.0_dp, f%K(:, :, t), res%VA(:, :, t), 1.0_dp, &
+                  res%A(:, :, t + 1))
         ! s += V^A' F^-1 v*,  S += V^A' F^-1 V^A  (F^-1 is zero-padded over missing)
         vz = merge(0.0_dp, f%v(:, t), ieee_is_nan(f%v(:, t)))
         call gemm('N', 'N', 1.0_dp, f%Finv(:, :, t), res%VA(:, :, t), 0.0_dp, FV)
@@ -119,7 +123,8 @@ contains
       return
     end if
     res%delta = -matmul(res%delta_cov, res%s)
-    res%llf = res%filter%llf + 0.5_dp * dot_product(res%s, -res%delta) - 0.5_dp * logdetS
+    res%llf = res%filter%llf + 0.5_dp * dot_product(res%s, -res%delta) &
+              - 0.5_dp * logdetS
     res%llf_fixed = res%llf + 0.5_dp * logdetS
     res%llf_marginal = res%llf + marginal_correction(rep, info)
   end subroutine augmented_filter
@@ -133,7 +138,8 @@ contains
     integer, intent(out) :: info
     type(ssm_rep_t) :: star
     type(smoother_result_t) :: sres
-    real(dp), allocatable :: RA(:, :), RAprev(:, :), Lt(:, :), B(:, :), BS(:, :), ZtFinv(:, :)
+    real(dp), allocatable :: RA(:, :), RAprev(:, :), Lt(:, :), B(:, :), BS(:, :), &
+                             ZtFinv(:, :)
     real(dp), allocatable :: a1(:), Pstar(:, :), Pinf(:, :)
     integer :: m, k, n, t, iz, it
 
@@ -146,7 +152,8 @@ contains
     call state_smoother(star, res%filter, sres, info)
     if (info /= SS_OK) return
 
-    allocate (RA(m, k), RAprev(m, k), ZtFinv(m, rep%k_endog), B(m, k), BS(m, k), source=0.0_dp)
+    allocate (RA(m, k), RAprev(m, k), ZtFinv(m, rep%k_endog), B(m, k), BS(m, k), &
+              source=0.0_dp)
     associate (f => res%filter)
       do t = n, 1, -1
         iz = tidx(size(rep%Z, 3), t)

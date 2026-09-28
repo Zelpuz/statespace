@@ -6,7 +6,8 @@
 !> common case in state space models) use inline loops instead of BLAS,
 !> whose per-call overhead dominates at those sizes.
 module statespace_linalg
-  use statespace_kinds, only: dp, SS_OK, SS_ERR_NOT_PD, SS_ERR_SINGULAR, SS_ERR_NOT_STATIONARY
+  use statespace_kinds, only: dp, SS_OK, SS_ERR_NOT_PD, SS_ERR_SINGULAR, &
+                              SS_ERR_NOT_STATIONARY
   implicit none
   private
 
@@ -92,8 +93,8 @@ contains
       k = size(A, 1)
     end if
     if (size(C, 1) * size(C, 2) * k > small_gemm) then
-      call dgemm(transa, transb, size(C, 1), size(C, 2), k, alpha, A, max(1, size(A, 1)), &
-                 B, max(1, size(B, 1)), beta, C, max(1, size(C, 1)))
+      call dgemm(transa, transb, size(C, 1), size(C, 2), k, alpha, A, &
+                 max(1, size(A, 1)), B, max(1, size(B, 1)), beta, C, max(1, size(C, 1)))
       return
     end if
 
@@ -143,7 +144,8 @@ contains
     integer :: i, j
 
     if (size(A, 1) * size(A, 2) > small_gemv) then
-      call dgemv(trans, size(A, 1), size(A, 2), alpha, A, max(1, size(A, 1)), x, 1, beta, y, 1)
+      call dgemv(trans, size(A, 1), size(A, 2), alpha, A, max(1, size(A, 1)), x, 1, &
+                 beta, y, 1)
       return
     end if
 
@@ -340,8 +342,8 @@ contains
     if (present(transpose)) then
       if (transpose) trans = 'T'
     end if
-    call dtrsm('L', 'L', trans, 'U', size(B, 1), size(B, 2), 1.0_dp, L, max(1, size(L, 1)), &
-               B, max(1, size(B, 1)))
+    call dtrsm('L', 'L', trans, 'U', size(B, 1), size(B, 2), 1.0_dp, L, &
+               max(1, size(L, 1)), B, max(1, size(B, 1)))
   end subroutine solve_unit_lower
 
   !> X = A^+ B for symmetric positive semi-definite A, via A = L D L' with

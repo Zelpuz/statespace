@@ -25,3 +25,11 @@ lbfgsb.path = "third_party/lbfgsb"
 [dev-dependencies]
 test-drive.git = "https://github.com/fortran-lang/test-drive"
 test-drive.rev = "c506771aefd594e7e372240a8027b3fd06d61264"  # v0.6.1
+
+# Fortitude (https://fortitude.readthedocs.io): `fortitude check`. Formatting
+# rules only: line length, trailing whitespace, misleading inline-if
+# continuations; and syntax errors.
+[extra.fortitude.check]
+line-length = 88
+select = ["S001", "S101", "C152", "E001"]
+exclude = ["third_party", "build"]

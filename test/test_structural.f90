@@ -17,24 +17,23 @@ contains
   subroutine collect_structural(testsuite)
     type(unittest_type), allocatable, intent(out) :: testsuite(:)
 
-    testsuite = [ &
-                new_unittest("basic_structural_model", test_bsm), &
-                new_unittest("trigonometric_seasonal", test_trig), &
-                new_unittest("smooth_trend", test_smooth_trend), &
-                new_unittest("damped_cycle", test_cycle), &
-                new_unittest("regression_and_intervention", test_regression), &
-                new_unittest("random_walk_regression", test_rw_regression), &
-                new_unittest("sutse_independent_series", test_sutse_diagonal), &
-                new_unittest("full_covariance_transform", test_full_cov), &
-                new_unittest("fixed_seasonals_marginal", test_fixed_seasonals), &
-                new_unittest("common_levels", test_common_levels), &
-                new_unittest("latent_risk", test_latent_risk), &
-                new_unittest("dynamic_factor", test_dynamic_factor), &
-                new_unittest("continuous_level_unit_spacing", test_continuous_unit), &
-                new_unittest("continuous_level_interpolation", test_continuous_interp), &
-                new_unittest("continuous_spline_vs_scipy", test_cubic_spline), &
-                new_unittest("discrete_spline_penalized_ls", test_discrete_spline) &
-                ]
+    testsuite = [ new_unittest("basic_structural_model", test_bsm), &
+                 new_unittest("trigonometric_seasonal", test_trig), &
+                 new_unittest("smooth_trend", test_smooth_trend), &
+                 new_unittest("damped_cycle", test_cycle), &
+                 new_unittest("regression_and_intervention", test_regression), &
+                 new_unittest("random_walk_regression", test_rw_regression), &
+                 new_unittest("sutse_independent_series", test_sutse_diagonal), &
+                 new_unittest("full_covariance_transform", test_full_cov), &
+                 new_unittest("fixed_seasonals_marginal", test_fixed_seasonals), &
+                 new_unittest("common_levels", test_common_levels), &
+                 new_unittest("latent_risk", test_latent_risk), &
+                 new_unittest("dynamic_factor", test_dynamic_factor), &
+                 new_unittest("continuous_level_unit_spacing", test_continuous_unit), &
+                 new_unittest("continuous_level_interpolation", &
+                              test_continuous_interp), &
+                 new_unittest("continuous_spline_vs_scipy", test_cubic_spline), &
+                 new_unittest("discrete_spline_penalized_ls", test_discrete_spline) ]
   end subroutine collect_structural
 
   subroutine check_close(error, actual, expected, label)
@@ -178,7 +177,8 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     ! The intervention is rebuilt with step_intervention (DK 3.2.5).
-    comps(3)%c = regression_t(x=reshape([x(:, 1), step_intervention(size(x, 1), 50)], shape(x)))
+    comps(3)%c = regression_t(x=reshape([x(:, 1), step_intervention(size(x, 1), 50)], &
+                                        shape(x)))
     call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
     call check_close(error, sres%alphahat(mod%s0(2) + 1, :), fx%get1('level'), "level")
@@ -201,7 +201,8 @@ contains
     comps(3)%c = regression_t(x=fx%get2('x'), random_walk=[.true.])
     call run(error, mod, comps, fx, [0.25_dp, 0.09_dp, 0.01_dp], fres, sres)
     if (allocated(error)) return
-    call check_close(error, pack(sres%alphahat, .true.), fx%get1('alphahat'), "alphahat")
+    call check_close(error, pack(sres%alphahat, .true.), fx%get1('alphahat'), &
+                     "alphahat")
   end subroutine test_rw_regression
 
   !> SUTSE (DK 3.3) with diagonal covariances: independent series, so the
@@ -230,7 +231,8 @@ contains
     ua = structural_model(ya, comps, info)
     ub = structural_model(yb, comps, info)
     ! Parameters: per component, series 1 then 2.
-    l2 = mv%loglike([0.3_dp, 0.2_dp, 0.1_dp, 0.05_dp, 0.003_dp, 0.002_dp, 0.01_dp, 0.02_dp], info)
+    l2 = mv%loglike([0.3_dp, 0.2_dp, 0.1_dp, 0.05_dp, 0.003_dp, 0.002_dp, 0.01_dp, &
+                     0.02_dp], info)
     la = ua%loglike([0.3_dp, 0.1_dp, 0.003_dp, 0.01_dp], info)
     lb = ub%loglike([0.2_dp, 0.05_dp, 0.002_dp, 0.02_dp], info)
     call check_close(error, [l2], [la + lb], "sum of univariate llf")
@@ -259,12 +261,14 @@ contains
     comps(2)%c = level_t(cov=COV_FULL)
     mod = structural_model(y2, comps, info)
     p = [1.0_dp, 0.3_dp, 2.0_dp, 0.5_dp, -0.2_dp, 0.4_dp]
-    call check_close(error, mod%transform_params(mod%untransform_params(p)), p, "roundtrip")
+    call check_close(error, mod%transform_params(mod%untransform_params(p)), p, &
+                     "roundtrip")
     if (allocated(error)) return
     call mod%update(p)
     call check_close(error, [mod%rep%H(:, :, 1)], [1.0_dp, 0.3_dp, 0.3_dp, 2.0_dp], "H")
     if (allocated(error)) return
-    call check_close(error, [mod%rep%Q(:, :, 1)], [0.5_dp, -0.2_dp, -0.2_dp, 0.4_dp], "Q")
+    call check_close(error, [mod%rep%Q(:, :, 1)], [0.5_dp, -0.2_dp, -0.2_dp, 0.4_dp], &
+                     "Q")
     if (allocated(error)) return
     call check(error, info, SS_OK, "info")
   end subroutine test_full_cov
@@ -295,7 +299,8 @@ contains
     lt = mt%loglike([0.25_dp, 0.09_dp, 0.0025_dp], info)
     call check_close(error, [ld], [lt], "marginal llf")
     if (allocated(error)) return
-    call check(error, abs(dd - dt) > 1.0e-6_dp, "diffuse llf differ between representations")
+    call check(error, abs(dd - dt) > 1.0e-6_dp, &
+               "diffuse llf differ between representations")
   end subroutine test_fixed_seasonals
   !> DK 3.3.2: y_t = a + A mu*_t + eps_t with one common level, A = (1, a2)'
   !> (a2 a free loading) and a = (0, c2)' (a diffuse intercept on series 2).
@@ -315,8 +320,9 @@ contains
     a2 = 0.7_dp
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
-    comps(3)%c = regression_t(x=reshape(spread(1.0_dp, 1, size(y, 2)), [size(y, 2), 1]), &
-                              series=2, at_observations=.true.)
+    comps(3)%c = regression_t(x=reshape(spread(1.0_dp, 1, size(y, 2)), &
+                                        [size(y, 2), 1]), series=2, &
+                              at_observations=.true.)
     mod = structural_model(y, comps, info, loading=reshape([1.0_dp, 0.0_dp], [2, 1]), &
                            loading_free=reshape([.false., .true.], [2, 1]))
     call check(error, info, SS_OK, "model info")
@@ -357,8 +363,10 @@ contains
     rep = ssm_rep(fx%get2('y'), 3, 3)
     rep%Z(:, :, 1) = L
     rep%T(:, :, 1) = eye(3)
-    rep%Q(:, :, 1) = reshape([0.1_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.2_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.3_dp], [3, 3])
-    rep%H(:, :, 1) = reshape([1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.5_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.5_dp], [3, 3])
+    rep%Q(:, :, 1) = reshape([0.1_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.2_dp, 0.0_dp, 0.0_dp, &
+                              0.0_dp, 0.3_dp], [3, 3])
+    rep%H(:, :, 1) = reshape([1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.5_dp, 0.0_dp, 0.0_dp, &
+                              0.0_dp, 0.5_dp], [3, 3])
     call rep%initialize_diffuse()
     call check_close(error, [llf], [loglike(rep, info)], "llf")
   end subroutine test_latent_risk
@@ -379,7 +387,8 @@ contains
     fx = load_fixture("test/fixtures/mv_missing.txt")
     allocate (irregular_t :: comps(1)%c)
     comps(2)%c = arima_t(ar=1)
-    mod = structural_model(fx%get2('y'), comps, info, loading=reshape([1.0_dp, 0.0_dp, 0.0_dp], [3, 1]), &
+    mod = structural_model(fx%get2('y'), comps, info, &
+                           loading=reshape([1.0_dp, 0.0_dp, 0.0_dp], [3, 1]), &
                            loading_free=reshape([.false., .true., .true.], [3, 1]))
     call check(error, mod%k_params, 7, "irregular (3), AR (2), loadings (2)")
     if (allocated(error)) return
@@ -389,7 +398,8 @@ contains
     rep%Z(:, 1, 1) = [1.0_dp, -0.4_dp, 1.3_dp]
     rep%T = 0.6_dp
     rep%Q = 0.8_dp
-    rep%H(:, :, 1) = reshape([1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.5_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.5_dp], [3, 3])
+    rep%H(:, :, 1) = reshape([1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.5_dp, 0.0_dp, 0.0_dp, &
+                              0.0_dp, 0.5_dp], [3, 3])
     call rep%initialize_stationary()
     call check_close(error, [llf], [loglike(rep, info)], "llf")
     if (allocated(error)) return
@@ -445,7 +455,8 @@ contains
     call mb%smooth([15099.0_dp, 1469.1_dp], fb, sb, info)
     call check_close(error, [fb%llf], [fa%llf], "llf")
     if (allocated(error)) return
-    call check_close(error, [sb%alphahat(1, 1:10), sb%alphahat(1, 12:)], sa%alphahat(1, :), "alphahat")
+    call check_close(error, [sb%alphahat(1, 1:10), sb%alphahat(1, 12:)], &
+                     sa%alphahat(1, :), "alphahat")
 
   contains
 

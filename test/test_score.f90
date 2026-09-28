@@ -226,14 +226,16 @@ contains
     end do
     err = maxval(abs(score - fd) / (abs(fd) + 1.0e-6_dp * maxval(abs(fd))))
     write (buf, '(es10.3)') err
-    call check(error, err < 1.0e-5_dp, "score vs finite differences: relative error "//trim(buf))
+    call check(error, err < 1.0e-5_dp, &
+               "score vs finite differences: relative error "//trim(buf))
   end subroutine check_score
 
   subroutine test_nile(error)
     type(error_type), allocatable, intent(out) :: error
     type(varmodel_t) :: mod
 
-    mod = varmodel("test/fixtures/nile_llevel_exact.txt", reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
+    mod = varmodel("test/fixtures/nile_llevel_exact.txt", &
+                   reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
     call check_score(error, mod, [1.2_dp, 0.7_dp])
   end subroutine test_nile
 
@@ -326,7 +328,8 @@ contains
     real(dp) :: score(2), llf
     integer :: info
 
-    mod = varmodel("test/fixtures/nile_llevel_exact.txt", reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
+    mod = varmodel("test/fixtures/nile_llevel_exact.txt", &
+                   reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
     mod%rep%loglikelihood_burn = 1
     call analytic_score(mod, [15000.0_dp, 1500.0_dp], score, llf, info)
     call check(error, info, SS_ERR_UNSUPPORTED, "burn-in")
@@ -359,13 +362,16 @@ contains
     call em_variances(rep, 20000, 1.0e-10_dp, llf, niter, info, llf_path=path)
     call check(error, info, SS_OK, "em info")
     if (allocated(error)) return
-    call check(error, all(path(2:) >= path(:niter - 1) - 1.0e-9_dp), "log likelihood decreased")
+    call check(error, all(path(2:) >= path(:niter - 1) - 1.0e-9_dp), &
+               "log likelihood decreased")
     if (allocated(error)) return
     write (buf, '(2f12.3, i7)') rep%H(1, 1, 1), rep%Q(1, 1, 1), niter
-    call check(error, abs(rep%H(1, 1, 1) / 15098.518_dp - 1) < 1.0e-3_dp .and. &
-               abs(rep%Q(1, 1, 1) / 1469.176_dp - 1) < 1.0e-3_dp, "EM estimates "//trim(buf))
+    call check(error, abs(rep%H(1, 1, 1) / 15098.518_dp - 1) < 1.0e-3_dp &
+               .and. abs(rep%Q(1, 1, 1) / 1469.176_dp - 1) < 1.0e-3_dp, &
+               "EM estimates "//trim(buf))
     if (allocated(error)) return
-    call check(error, abs(llf - sum(mx%get1('llf_tight'))) < 1.0e-6_dp, "EM log likelihood")
+    call check(error, abs(llf - sum(mx%get1('llf_tight'))) < 1.0e-6_dp, &
+               "EM log likelihood")
   end subroutine test_em_nile
 
   !> EM is monotone, and the MLE is an EM fixed point: fit by maximum
@@ -389,7 +395,8 @@ contains
                       diagonal_Q=diagonal, llf_path=path)
     call check(error, info, SS_OK, "em info")
     if (allocated(error)) return
-    call check(error, all(path(2:) >= path(:niter - 1) - 1.0e-9_dp), "log likelihood decreased")
+    call check(error, all(path(2:) >= path(:niter - 1) - 1.0e-9_dp), &
+               "log likelihood decreased")
     if (allocated(error)) return
 
     opts%factr = 10.0_dp
@@ -405,7 +412,8 @@ contains
     if (allocated(error)) return
     change = maxval(abs(current_params(mod) - p0) / max(abs(p0), 1.0e-8_dp))
     write (buf, '(es10.2)') change
-    call check(error, change < 1.0e-4_dp, "EM step from the MLE moved it by "//trim(buf))
+    call check(error, change < 1.0e-4_dp, &
+               "EM step from the MLE moved it by "//trim(buf))
   end subroutine check_em_fixed_point
 
   subroutine test_em_mv_missing(error)
@@ -480,14 +488,16 @@ contains
     call analytic_score(mod, p0, score, llf, info, analytic)
     call check(error, info, SS_OK, "with the mask")
     if (allocated(error)) return
-    call check(error, all(analytic .eqv. [.true., .true., .true., .false., .false.]), "mask")
+    call check(error, all(analytic .eqv. [.true., .true., .true., .false., .false.]), &
+               "mask")
     if (allocated(error)) return
     do i = 1, 3
       h = 1.0e-5_dp * p0(i)
       pp = p0; pp(i) = p0(i) + h
       pm = p0; pm(i) = p0(i) - h
       fd = (mod%loglike(pp, info) - mod%loglike(pm, info)) / (2 * h)
-      call check(error, abs(score(i) - fd) <= 1.0e-5_dp * max(1.0_dp, abs(fd)), "score vs FD")
+      call check(error, abs(score(i) - fd) <= 1.0e-5_dp * max(1.0_dp, abs(fd)), &
+                 "score vs FD")
       if (allocated(error)) return
     end do
   end subroutine test_hybrid_mask
@@ -515,7 +525,8 @@ contains
     call fit(m2, r2, options=opts, info=info)
     call check(error, abs(r1%llf - r2%llf) < 1.0e-6_dp, "same log likelihood")
     if (allocated(error)) return
-    call check(error, maxval(abs(r1%params - r2%params) / max(abs(r2%params), 1.0e-3_dp)) < 1.0e-3_dp, &
+    call check(error, maxval(abs(r1%params - r2%params) &
+                             / max(abs(r2%params), 1.0e-3_dp)) < 1.0e-3_dp, &
                "same estimates")
   end subroutine test_hybrid_fit
 end module test_score

@@ -53,7 +53,9 @@ def ljung_box(x, lags=10, model_df=0):
     """
     x = _x(x)
     stat, pvalue = np.empty(lags), np.empty(lags)
-    call("ss_ljung_box", x.size, ptr(x), int(lags), int(model_df), ptr(stat), ptr(pvalue))
+    call(
+        "ss_ljung_box", x.size, ptr(x), int(lags), int(model_df), ptr(stat), ptr(pvalue)
+    )
     return stat, pvalue
 
 
@@ -107,6 +109,12 @@ def breakvar(x, h=None):
     """
     x = _x(x)
     stat, pvalue = ctypes.c_double(), ctypes.c_double()
-    call("ss_breakvar", x.size, ptr(x), 0 if h is None else int(h), ctypes.byref(stat),
-         ctypes.byref(pvalue))
+    call(
+        "ss_breakvar",
+        x.size,
+        ptr(x),
+        0 if h is None else int(h),
+        ctypes.byref(stat),
+        ctypes.byref(pvalue),
+    )
     return stat.value, pvalue.value

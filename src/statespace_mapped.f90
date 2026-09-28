@@ -94,7 +94,8 @@ contains
     integer, intent(in) :: array, offset, dim, first
 
     self%blocks = [self%blocks, map_block_t(array, offset, dim, first)]
-    call self%add_group(MAP_COV, first, first + dim * (dim + 1) / 2 - 1, real(dim, dp), 0.0_dp)
+    call self%add_group(MAP_COV, first, first + dim * (dim + 1) / 2 - 1, &
+                        real(dim, dp), 0.0_dp)
   end subroutine add_block
 
   subroutine add_group(self, kind, first, last, lo, hi)
@@ -201,7 +202,8 @@ contains
 
     constrained = unconstrained
     do g = 1, size(self%groups)
-      associate (gr => self%groups(g), x => unconstrained(self%groups(g)%first:self%groups(g)%last))
+      associate (gr => self%groups(g), &
+                 x => unconstrained(self%groups(g)%first:self%groups(g)%last))
         select case (gr%kind)
         case (MAP_POSITIVE)
           constrained(gr%first:gr%last) = constrain_positive(x)
@@ -226,7 +228,8 @@ contains
 
     unconstrained = constrained
     do g = 1, size(self%groups)
-      associate (gr => self%groups(g), c => constrained(self%groups(g)%first:self%groups(g)%last))
+      associate (gr => self%groups(g), &
+                 c => constrained(self%groups(g)%first:self%groups(g)%last))
         select case (gr%kind)
         case (MAP_POSITIVE)
           unconstrained(gr%first:gr%last) = unconstrain_positive(c)

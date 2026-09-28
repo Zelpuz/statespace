@@ -13,7 +13,8 @@
 module statespace_model
   use statespace_kinds, only: dp, SS_OK
   use statespace_rep, only: ssm_rep_t
-  use statespace_filter, only: filter_result_t, kalman_filter, loglike, loglike_concentrated
+  use statespace_filter, only: filter_result_t, kalman_filter, loglike, &
+                               loglike_concentrated
   use statespace_smoother, only: smoother_result_t, state_smoother
   implicit none
   private
@@ -219,7 +220,8 @@ contains
     integer :: n, k, i
 
     n = size(phi)
-    allocate (y(n, n), source=0.0_dp, r(n))
+    allocate (y(n, n), source=0.0_dp)
+    allocate (r(n))
     y(n, :) = -phi
     do k = n, 2, -1
       do i = 1, k - 1

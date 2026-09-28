@@ -68,10 +68,22 @@ DIFFUSE_UNIVARIATE = 0
 #: Diffuse periods: multivariate exact initial filter where possible (DK §5.2).
 DIFFUSE_MULTIVARIATE = 1
 
-_ARR = {"endog": 1, "design": 2, "obs_cov": 3, "transition": 4, "selection": 5,
-        "state_cov": 6, "state_intercept": 7, "obs_intercept": 8}
-_OPT_INT = {"filter_method": 1, "diffuse_method": 2, "loglikelihood_burn": 3,
-            "marginal_likelihood": 4}
+_ARR = {
+    "endog": 1,
+    "design": 2,
+    "obs_cov": 3,
+    "transition": 4,
+    "selection": 5,
+    "state_cov": 6,
+    "state_intercept": 7,
+    "obs_intercept": 8,
+}
+_OPT_INT = {
+    "filter_method": 1,
+    "diffuse_method": 2,
+    "loglikelihood_burn": 3,
+    "marginal_likelihood": 4,
+}
 _OPT_REAL = {"tol_diffuse": 1, "tol_steady": 2}
 
 
@@ -126,6 +138,7 @@ class FilterResults:
     diagnostic_start : int
         First 0-based period after the burn-in and the diffuse periods.
     """
+
     llf: float
     llf_obs: np.ndarray
     nobs_diffuse: int
@@ -173,6 +186,7 @@ class SmootherResults:
     smoothed_state_disturbance_cov : ndarray, shape (r, r, n)
         :math:`Var(\\eta_t | Y_n)`.
     """
+
     filter: FilterResults
     smoothed_state: np.ndarray
     smoothed_state_cov: np.ndarray
@@ -213,6 +227,7 @@ class AugmentedResults:
     smoothed_state_cov : ndarray, shape (m, m, n)
         Its variance, including the uncertainty about :math:`\\delta`.
     """
+
     filter: FilterResults
     delta: np.ndarray
     delta_cov: np.ndarray
@@ -319,8 +334,15 @@ class Representation:
     def _attach(self, handle, owner):
         p, m, r, n = (ctypes.c_int() for _ in range(4))
         nts = np.zeros(8, dtype=np.int32)
-        call("ss_rep_info", handle, ctypes.byref(p), ctypes.byref(m), ctypes.byref(r),
-             ctypes.byref(n), ptr(nts))
+        call(
+            "ss_rep_info",
+            handle,
+            ctypes.byref(p),
+            ctypes.byref(m),
+            ctypes.byref(r),
+            ctypes.byref(n),
+            ptr(nts),
+        )
         d = object.__setattr__
         d(self, "_h", handle)
         d(self, "_owner", owner)
@@ -335,9 +357,16 @@ class Representation:
 
     def _shape(self, name):
         p, m, r = self.k_endog, self.k_states, self.k_posdef
-        return {"endog": (p, self.nobs), "design": (p, m), "obs_cov": (p, p),
-                "transition": (m, m), "selection": (m, r), "state_cov": (r, r),
-                "state_intercept": (m,), "obs_intercept": (p,)}[name]
+        return {
+            "endog": (p, self.nobs),
+            "design": (p, m),
+            "obs_cov": (p, p),
+            "transition": (m, m),
+            "selection": (m, r),
+            "state_cov": (r, r),
+            "state_intercept": (m,),
+            "obs_intercept": (p,),
+        }[name]
 
     def __setitem__(self, name, value):
         """Set a system matrix, or ``endog`` with shape (p, n)."""
@@ -357,8 +386,9 @@ class Representation:
             nt = self.nobs
             a = farray(a)
         else:
-            raise ValueError(f"{name} must have shape {base} or {base + (self.nobs,)}, "
-                             f"not {a.shape}")
+            raise ValueError(
+                f"{name} must have shape {base} or {base + (self.nobs,)}, not {a.shape}"
+            )
         call("ss_rep_set", self._h, _ARR[name], nt, ptr(a))
 
     def __getitem__(self, name):
@@ -367,8 +397,15 @@ class Representation:
             raise KeyError(name)
         p, m, r, n = (ctypes.c_int() for _ in range(4))
         nts = np.zeros(8, dtype=np.int32)
-        call("ss_rep_info", self._h, ctypes.byref(p), ctypes.byref(m), ctypes.byref(r),
-             ctypes.byref(n), ptr(nts))
+        call(
+            "ss_rep_info",
+            self._h,
+            ctypes.byref(p),
+            ctypes.byref(m),
+            ctypes.byref(r),
+            ctypes.byref(n),
+            ptr(nts),
+        )
         base = self._shape(name)
         nt = int(nts[_ARR[name] - 1])
         shape = base if name == "endog" else base + (nt,)
@@ -511,11 +548,27 @@ class Representation:
         nb = stop - start
         if a1 is not None:
             a, P = farray(a1, (nb,)), farray(P1, (nb, nb))
-            call("ss_rep_init_block", self._h, start + 1, stop, kind, ptr(a), ptr(P),
-                 float(variance))
+            call(
+                "ss_rep_init_block",
+                self._h,
+                start + 1,
+                stop,
+                kind,
+                ptr(a),
+                ptr(P),
+                float(variance),
+            )
         else:
-            call("ss_rep_init_block", self._h, start + 1, stop, kind, None, None,
-                 float(variance))
+            call(
+                "ss_rep_init_block",
+                self._h,
+                start + 1,
+                stop,
+                kind,
+                None,
+                None,
+                float(variance),
+            )
 
     # -- computations ----------------------------------------------------
 
@@ -582,7 +635,11 @@ class Representation:
         loglike : Log likelihood without storing the output.
         """
         fh = ctypes.c_void_p()
-        call("ss_sqrt_filter" if method == "sqrt" else "ss_filter", self._h, ctypes.byref(fh))
+        call(
+            "ss_sqrt_filter" if method == "sqrt" else "ss_filter",
+            self._h,
+            ctypes.byref(fh),
+        )
         try:
             return self._filter_results(fh)
         finally:
@@ -617,7 +674,11 @@ class Representation:
         array([[0.6, 1.2, 2. , 2.8, 3.4]])
         """
         fh, sh = ctypes.c_void_p(), ctypes.c_void_p()
-        call("ss_sqrt_filter" if method == "sqrt" else "ss_filter", self._h, ctypes.byref(fh))
+        call(
+            "ss_sqrt_filter" if method == "sqrt" else "ss_filter",
+            self._h,
+            ctypes.byref(fh),
+        )
         try:
             fres = self._filter_results(fh)
             if method == "sqrt":
@@ -626,7 +687,10 @@ class Representation:
                 call("ss_smooth", self._h, fh, ctypes.byref(sh))
             try:
                 p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
-                get = lambda code, shape: _get("ss_smoother_get", sh, code, shape)
+
+                def get(code, shape):
+                    return _get("ss_smoother_get", sh, code, shape)
+
                 return SmootherResults(
                     filter=fres,
                     smoothed_state=get(1, (m, n)),
@@ -647,12 +711,24 @@ class Representation:
         p, m, n = self.k_endog, self.k_states, self.nobs
         llf = ctypes.c_double()
         nd, kd, ts = ctypes.c_int(), ctypes.c_int(), ctypes.c_int()
-        call("ss_filter_scalars", fh, ctypes.byref(llf), ctypes.byref(nd), ctypes.byref(kd),
-             ctypes.byref(ts))
-        get = lambda code, shape: _get("ss_filter_get", fh, code, shape)
+        call(
+            "ss_filter_scalars",
+            fh,
+            ctypes.byref(llf),
+            ctypes.byref(nd),
+            ctypes.byref(kd),
+            ctypes.byref(ts),
+        )
+
+        def get(code, shape):
+            return _get("ss_filter_get", fh, code, shape)
+
         return FilterResults(
-            llf=llf.value, llf_obs=get(12, (n,)), nobs_diffuse=nd.value,
-            k_diffuse=kd.value, t_steady=ts.value,
+            llf=llf.value,
+            llf_obs=get(12, (n,)),
+            nobs_diffuse=nd.value,
+            k_diffuse=kd.value,
+            t_steady=ts.value,
             predicted_state=get(1, (m, n + 1)),
             predicted_state_cov=get(2, (m, m, n + 1)),
             predicted_diffuse_state_cov=get(3, (m, m, n + 1)),
@@ -676,7 +752,7 @@ class Representation:
     def _diagnostic_start(self, fh):
         t0 = ctypes.c_int()
         call("ss_diagnostic_start", self._h, fh, ctypes.byref(t0))
-        return t0.value - 1   # 0-based
+        return t0.value - 1  # 0-based
 
     # -- forecasting and simulation -----------------------------------------
 
@@ -717,8 +793,11 @@ class Representation:
             ui, ue, un = variates
             return farray(ui, (m,)), farray(ue, (p, n)), farray(un, (r, n))
         rng = np.random.default_rng(rng)
-        return (rng.standard_normal(m), np.asfortranarray(rng.standard_normal((p, n))),
-                np.asfortranarray(rng.standard_normal((r, n))))
+        return (
+            rng.standard_normal(m),
+            np.asfortranarray(rng.standard_normal((p, n))),
+            np.asfortranarray(rng.standard_normal((r, n))),
+        )
 
     def simulate(self, rng=None, variates=None):
         """Simulate observations and states from the model.
@@ -751,8 +830,17 @@ class Representation:
         p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
         y, alpha = np.empty((p, n), order="F"), np.empty((m, n), order="F")
         eps, eta = np.empty((p, n), order="F"), np.empty((r, n), order="F")
-        call("ss_simulate", self._h, ptr(ui), ptr(ue), ptr(un), ptr(y), ptr(alpha), ptr(eps),
-             ptr(eta))
+        call(
+            "ss_simulate",
+            self._h,
+            ptr(ui),
+            ptr(ue),
+            ptr(un),
+            ptr(y),
+            ptr(alpha),
+            ptr(eps),
+            ptr(eta),
+        )
         return y, alpha, eps, eta
 
     def simulation_smoother(self, rng=None, variates=None):
@@ -786,8 +874,16 @@ class Representation:
         p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
         state, eps = np.empty((m, n), order="F"), np.empty((p, n), order="F")
         eta = np.empty((r, n), order="F")
-        call("ss_simulation_smoother", self._h, ptr(ui), ptr(ue), ptr(un), ptr(state),
-             ptr(eps), ptr(eta))
+        call(
+            "ss_simulation_smoother",
+            self._h,
+            ptr(ui),
+            ptr(ue),
+            ptr(un),
+            ptr(state),
+            ptr(eps),
+            ptr(eta),
+        )
         return state, eps, eta
 
     # -- DK ch. 4 extras ------------------------------------------------------
@@ -839,7 +935,9 @@ class Representation:
             Its variance.
         """
         a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
-        self._with_filter(lambda fh: call("ss_classical_smoother", self._h, fh, ptr(a), ptr(V)))
+        self._with_filter(
+            lambda fh: call("ss_classical_smoother", self._h, fh, ptr(a), ptr(V))
+        )
         return a, V
 
     def two_filter_smoother(self):
@@ -856,7 +954,9 @@ class Representation:
             Its variance.
         """
         a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
-        self._with_filter(lambda fh: call("ss_two_filter_smoother", self._h, fh, ptr(a), ptr(V)))
+        self._with_filter(
+            lambda fh: call("ss_two_filter_smoother", self._h, fh, ptr(a), ptr(V))
+        )
         return a, V
 
     def whittle_smoother(self):
@@ -895,8 +995,11 @@ class Representation:
         k = self.nobs - t
         a = np.empty((self.k_states, k), order="F")
         V = np.empty((self.k_states, self.k_states, k), order="F")
-        self._with_filter(lambda fh: call("ss_fixed_point_smoother", self._h, fh, int(t) + 1,
-                                          ptr(a), ptr(V)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_fixed_point_smoother", self._h, fh, int(t) + 1, ptr(a), ptr(V)
+            )
+        )
         return a, V
 
     def fixed_lag_smoother(self, lag):
@@ -918,8 +1021,11 @@ class Representation:
             Its variance.
         """
         a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
-        self._with_filter(lambda fh: call("ss_fixed_lag_smoother", self._h, fh, int(lag),
-                                          ptr(a), ptr(V)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_fixed_lag_smoother", self._h, fh, int(lag), ptr(a), ptr(V)
+            )
+        )
         return a, V
 
     def update_smoothed(self, alphahat, V, nobs_old):
@@ -945,8 +1051,11 @@ class Representation:
         W = np.full(self._mn()[1], np.nan, order="F")
         a[:, :nobs_old] = np.asarray(alphahat)[:, :nobs_old]
         W[:, :, :nobs_old] = np.asarray(V)[:, :, :nobs_old]
-        self._with_filter(lambda fh: call("ss_update_smoothed", self._h, fh, int(nobs_old),
-                                          ptr(a), ptr(W)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_update_smoothed", self._h, fh, int(nobs_old), ptr(a), ptr(W)
+            )
+        )
         return a, W
 
     def smoothed_state_autocov(self):
@@ -959,8 +1068,10 @@ class Representation:
             the diffuse periods are involved.
         """
         out = np.empty((self.k_states, self.k_states, self.nobs - 1), order="F")
-        self._with_filter(lambda fh, sh: call("ss_smoothed_state_autocov", self._h, fh, sh,
-                                              ptr(out)), smoother=True)
+        self._with_filter(
+            lambda fh, sh: call("ss_smoothed_state_autocov", self._h, fh, sh, ptr(out)),
+            smoother=True,
+        )
         return out
 
     def smoothed_state_cov_between(self, t, j):
@@ -977,8 +1088,18 @@ class Representation:
             :math:`Cov(\\alpha_t, \\alpha_j | Y_n)`.
         """
         out = np.empty((self.k_states, self.k_states), order="F")
-        self._with_filter(lambda fh, sh: call("ss_smoothed_state_cov_between", self._h, fh, sh,
-                                              int(t) + 1, int(j) + 1, ptr(out)), smoother=True)
+        self._with_filter(
+            lambda fh, sh: call(
+                "ss_smoothed_state_cov_between",
+                self._h,
+                fh,
+                sh,
+                int(t) + 1,
+                int(j) + 1,
+                ptr(out),
+            ),
+            smoother=True,
+        )
         return out
 
     def filtered_state_weights(self):
@@ -995,8 +1116,11 @@ class Representation:
         """
         m, p, n = self.k_states, self.k_endog, self.nobs
         Wa, Watt = np.empty((m, p, n, n), order="F"), np.empty((m, p, n, n), order="F")
-        self._with_filter(lambda fh: call("ss_filtered_state_weights", self._h, fh, ptr(Wa),
-                                          ptr(Watt)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_filtered_state_weights", self._h, fh, ptr(Wa), ptr(Watt)
+            )
+        )
         return Wa, Watt
 
     def smoothed_state_weights(self):
@@ -1044,8 +1168,11 @@ class Representation:
             :math:`L_t`.
         """
         out = np.empty((self.k_states, self.k_states), order="F")
-        self._with_filter(lambda fh: call("ss_innovation_transition", self._h, fh, int(t) + 1,
-                                          ptr(out)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_innovation_transition", self._h, fh, int(t) + 1, ptr(out)
+            )
+        )
         return out
 
     def augmented(self):
@@ -1065,9 +1192,19 @@ class Representation:
         call("ss_augmented_filter", self._h, ctypes.byref(ah))
         try:
             k = ctypes.c_int()
-            llf, llf_fixed, llf_marg = ctypes.c_double(), ctypes.c_double(), ctypes.c_double()
-            call("ss_augmented_info", ah, ctypes.byref(k), ctypes.byref(llf),
-                 ctypes.byref(llf_fixed), ctypes.byref(llf_marg))
+            llf, llf_fixed, llf_marg = (
+                ctypes.c_double(),
+                ctypes.c_double(),
+                ctypes.c_double(),
+            )
+            call(
+                "ss_augmented_info",
+                ah,
+                ctypes.byref(k),
+                ctypes.byref(llf),
+                ctypes.byref(llf_fixed),
+                ctypes.byref(llf_marg),
+            )
             delta = np.empty(k.value)
             delta_cov = np.empty((k.value, k.value), order="F")
             if k.value > 0:
@@ -1076,15 +1213,27 @@ class Representation:
             fh = ctypes.c_void_p()
             call("ss_augmented_filter_result", ah, ctypes.byref(fh))
             fres = self._filter_results(fh)
-            a, V = np.empty(self._mn()[0], order="F"), np.empty(self._mn()[1], order="F")
+            a, V = (
+                np.empty(self._mn()[0], order="F"),
+                np.empty(self._mn()[1], order="F"),
+            )
             call("ss_augmented_smoother", self._h, ah, ptr(a), ptr(V))
         finally:
             _free("ss_augmented_free", ah)
-        return AugmentedResults(filter=fres, delta=delta, delta_cov=delta_cov, llf=llf.value,
-                                llf_fixed=llf_fixed.value, llf_marginal=llf_marg.value,
-                                smoothed_state=a, smoothed_state_cov=V)
+        return AugmentedResults(
+            filter=fres,
+            delta=delta,
+            delta_cov=delta_cov,
+            llf=llf.value,
+            llf_fixed=llf_fixed.value,
+            llf_marginal=llf_marg.value,
+            smoothed_state=a,
+            smoothed_state_cov=V,
+        )
 
-    def em(self, maxiter=500, tol=1e-8, diagonal_obs_cov=False, diagonal_state_cov=False):
+    def em(
+        self, maxiter=500, tol=1e-8, diagonal_obs_cov=False, diagonal_state_cov=False
+    ):
         """Estimate H and Q by the EM algorithm (DK §7.3.4).
 
         Updates ``obs_cov`` and ``state_cov`` in place. The E-step uses the
@@ -1116,9 +1265,18 @@ class Representation:
         """
         llf, niter = ctypes.c_double(), ctypes.c_int()
         path = np.empty(int(maxiter))
-        call("ss_em", self._h, int(maxiter), float(tol), int(bool(diagonal_obs_cov)),
-             int(bool(diagonal_state_cov)), ctypes.byref(llf), ctypes.byref(niter), ptr(path))
-        return llf.value, niter.value, path[:niter.value]
+        call(
+            "ss_em",
+            self._h,
+            int(maxiter),
+            float(tol),
+            int(bool(diagonal_obs_cov)),
+            int(bool(diagonal_state_cov)),
+            ctypes.byref(llf),
+            ctypes.byref(niter),
+            ptr(path),
+        )
+        return llf.value, niter.value, path[: niter.value]
 
     def collapse(self):
         """Collapse the observations to the state dimension (DK §6.5).
@@ -1200,8 +1358,12 @@ class Representation:
         """
         e = np.empty((self.k_endog, self.nobs), order="F")
         u = np.empty((self.k_posdef, self.nobs), order="F")
-        self._with_filter(lambda fh, sh: call("ss_auxiliary_residuals", self._h, sh,
-                                              int(bool(vector)), ptr(e), ptr(u)), smoother=True)
+        self._with_filter(
+            lambda fh, sh: call(
+                "ss_auxiliary_residuals", self._h, sh, int(bool(vector)), ptr(e), ptr(u)
+            ),
+            smoother=True,
+        )
         return e, u
 
     def de_jong_penzer(self):
@@ -1216,8 +1378,10 @@ class Representation:
         """
         r = np.empty((self.k_states, self.nobs), order="F")
         e = np.empty((self.k_endog, self.nobs), order="F")
-        self._with_filter(lambda fh, sh: call("ss_de_jong_penzer", self._h, fh, sh, ptr(r), ptr(e)),
-                          smoother=True)
+        self._with_filter(
+            lambda fh, sh: call("ss_de_jong_penzer", self._h, fh, sh, ptr(r), ptr(e)),
+            smoother=True,
+        )
         return r, e
 
     def least_squares_residuals(self, start, stop):
@@ -1257,8 +1421,11 @@ class Representation:
             random walk with drift.
         """
         r2 = ctypes.c_double()
-        self._with_filter(lambda fh: call("ss_r2_diffuse", self._h, fh, int(series) + 1,
-                                          ctypes.byref(r2)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_r2_diffuse", self._h, fh, int(series) + 1, ctypes.byref(r2)
+            )
+        )
         return r2.value
 
     def djs_simulation_smoother(self, rng=None, variates=None):
@@ -1291,8 +1458,19 @@ class Representation:
         p, m, r, n = self.k_endog, self.k_states, self.k_posdef, self.nobs
         eps, eta = np.empty((p, n), order="F"), np.empty((r, n), order="F")
         alpha = np.empty((m, n), order="F")
-        self._with_filter(lambda fh: call("ss_djs_simulation_smoother", self._h, fh, ptr(ue),
-                                          ptr(un), ptr(ui), ptr(eps), ptr(eta), ptr(alpha)))
+        self._with_filter(
+            lambda fh: call(
+                "ss_djs_simulation_smoother",
+                self._h,
+                fh,
+                ptr(ue),
+                ptr(un),
+                ptr(ui),
+                ptr(eps),
+                ptr(eta),
+                ptr(alpha),
+            )
+        )
         return alpha, eps, eta
 
     def steady_state(self):

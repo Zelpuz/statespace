@@ -3,7 +3,6 @@ fixtures where they exist, otherwise against identities between methods."""
 
 import numpy as np
 import pytest
-
 import ssfortran as ss
 from _fixtures import close, read_fixture, rep_from_fixture
 
@@ -39,8 +38,8 @@ def test_fixed_point_and_lag(mv):
     f = mv.filter()
     ref = mv.smooth()
     pa, pV = mv.fixed_point_smoother(10)
-    close(pa[:, 0], f.filtered_state[:, 10])          # given y up to period 10
-    close(pa[:, -1], ref.smoothed_state[:, 10])        # given all data
+    close(pa[:, 0], f.filtered_state[:, 10])  # given y up to period 10
+    close(pa[:, -1], ref.smoothed_state[:, 10])  # given all data
     a, V = mv.fixed_lag_smoother(n - 1)
     close(a[:, 0], ref.smoothed_state[:, 0])
     assert np.all(np.isnan(a[:, 1:]))
@@ -60,7 +59,9 @@ def test_autocov_cov_between_and_weights(mv):
     ex = read_fixture("extras_mv_invariant")
     close(mv.smoothed_state_autocov(), ex["autocov"])
     n = mv.nobs
-    cov3 = np.stack([mv.smoothed_state_cov_between(t, t + 3) for t in range(n - 3)], axis=2)
+    cov3 = np.stack(
+        [mv.smoothed_state_cov_between(t, t + 3) for t in range(n - 3)], axis=2
+    )
     close(cov3, ex["cov_shift3"])
     W, C, A = mv.smoothed_state_weights()
     close(W, ex["weights"])
@@ -68,7 +69,7 @@ def test_autocov_cov_between_and_weights(mv):
     close(A, ex["prior_weights"])
     Wa, Watt = mv.filtered_state_weights()
     assert Wa.shape == (mv.k_states, mv.k_endog, n, n)
-    assert np.allclose(Wa[:, :, 5, 5:], 0.0)         # a_t uses y_1..y_t-1 only
+    assert np.allclose(Wa[:, :, 5, 5:], 0.0)  # a_t uses y_1..y_t-1 only
     L = mv.innovation_transition(3)
     assert L.shape == (mv.k_states, mv.k_states)
 
@@ -90,7 +91,7 @@ def test_em_reaches_mle():
     rep["obs_cov"] = [[v / 2]]
     rep["state_cov"] = [[v / 2]]
     llf, niter, path = rep.em(maxiter=2000, tol=1e-10)
-    assert np.all(np.diff(path) >= -1e-8)             # EM never decreases llf
+    assert np.all(np.diff(path) >= -1e-8)  # EM never decreases llf
     assert rep["obs_cov"][0, 0] == pytest.approx(15099, rel=1e-3)
     assert rep["state_cov"][0, 0] == pytest.approx(1469.1, rel=1e-2)
 
@@ -122,7 +123,7 @@ def test_residual_diagnostics():
     rep = rep_from_fixture(read_fixture("nile_llevel_exact"))
     e, u = rep.auxiliary_residuals()
     ev, uv = rep.auxiliary_residuals(vector=True)
-    close(ev[:, 1:], e[:, 1:])                       # p = 1: the same
+    close(ev[:, 1:], e[:, 1:])  # p = 1: the same
     r_stat, e_stat = rep.de_jong_penzer()
     assert r_stat.shape == (1, rep.nobs) and e_stat.shape == (1, rep.nobs)
     r2 = rep.r2_diffuse()
@@ -152,7 +153,9 @@ def test_djs_simulation_smoother(mv):
     # mean over draws approaches the smoothed state
     ref = mv.smooth().smoothed_state
     draws = np.mean([mv.djs_simulation_smoother(rng=s)[0] for s in range(400)], axis=0)
-    assert np.max(np.abs(draws - ref)) < 0.5 * np.sqrt(mv.smooth().smoothed_state_cov.max())
+    assert np.max(np.abs(draws - ref)) < 0.5 * np.sqrt(
+        mv.smooth().smoothed_state_cov.max()
+    )
 
 
 def test_estimation_bias():

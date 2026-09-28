@@ -37,6 +37,11 @@ source tree::
    cmake --build build/cmake
    pytest                  # python/src and build/cmake, set in pyproject.toml
 
+Code is formatted to 88 columns: ``ruff format`` and ``ruff check`` for the
+Python (settings in ``pyproject.toml``), and `Fortitude
+<https://fortitude.readthedocs.io>`_'s ``fortitude check`` for the Fortran
+(settings in ``fpm.toml``), whose long lines are wrapped by hand.
+
 ``SSFORTRAN_LIB`` overrides the location of the library.
 
 Linux wheels are built with `cibuildwheel <https://cibuildwheel.pypa.io>`_

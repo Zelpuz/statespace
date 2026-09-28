@@ -50,7 +50,8 @@ contains
     type(ssm_rep_t) :: rep, plus, minus
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
-    real(dp), allocatable :: Gh(:, :, :), Gw(:, :, :), G1(:, :), dH(:, :, :), dW(:, :, :)
+    real(dp), allocatable :: Gh(:, :, :), Gw(:, :, :), G1(:, :), dH(:, :, :), &
+                             dW(:, :, :)
     real(dp), allocatable :: dPs(:, :), p(:), a1(:), Pstar(:, :), Pinf(:, :)
     real(dp), allocatable :: a1p(:), Psp(:, :), Pip(:, :), a1m(:), Psm(:, :), Pim(:, :)
     logical, allocatable :: h_singular(:)
@@ -187,7 +188,8 @@ contains
     do t = 1, nw
       ir = min(t, size(rep%R, 3))
       iq = min(t, size(rep%Q, 3))
-      W(:, :, t) = matmul(rep%R(:, :, ir), matmul(rep%Q(:, :, iq), transpose(rep%R(:, :, ir))))
+      W(:, :, t) = matmul(rep%R(:, :, ir), matmul(rep%Q(:, :, iq), &
+                                                  transpose(rep%R(:, :, ir))))
     end do
   end function rqr
 

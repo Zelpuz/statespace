@@ -6,12 +6,13 @@
 !> a handle usable with the ss_rep_* routines (statespace_capi), from the k
 !> constrained params, and return 0 on success. On failure the
 !> representation's H is set to NaN, so the likelihood cannot be evaluated
-!> (and the optimizer backs off); H is restored before the next update. transform_cb(k, x, out) and
-!> untransform_cb(k, x, out) map between the unconstrained and constrained
-!> parameters; without them the parameters are unconstrained.
+!> (and the optimizer backs off); H is restored before the next update.
+!> transform_cb(k, x, out) and untransform_cb(k, x, out) map between the
+!> unconstrained and constrained parameters; without them the parameters are
+!> unconstrained.
 module statespace_callback
-  use, intrinsic :: iso_c_binding, only: c_int, c_ptr, c_funptr, c_f_procpointer, c_loc, &
-                                         c_associated, c_null_funptr, c_null_ptr
+  use, intrinsic :: iso_c_binding, only: c_int, c_ptr, c_funptr, c_f_procpointer, &
+                                         c_loc, c_associated, c_null_funptr, c_null_ptr
   use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan
   use statespace_kinds, only: dp
   use statespace_model, only: ssm_model_t
@@ -86,7 +87,9 @@ contains
     real(dp), allocatable :: constrained(:)
 
     constrained = unconstrained
-    if (c_associated(self%transform_cb)) call apply(self%transform_cb, unconstrained, constrained)
+    if (c_associated(self%transform_cb)) then
+      call apply(self%transform_cb, unconstrained, constrained)
+    end if
   end function cb_transform
 
   function cb_untransform(self, constrained) result(unconstrained)
@@ -95,7 +98,9 @@ contains
     real(dp), allocatable :: unconstrained(:)
 
     unconstrained = constrained
-    if (c_associated(self%untransform_cb)) call apply(self%untransform_cb, constrained, unconstrained)
+    if (c_associated(self%untransform_cb)) then
+      call apply(self%untransform_cb, constrained, unconstrained)
+    end if
   end function cb_untransform
 
   subroutine apply(fp, x, out)
