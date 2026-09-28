@@ -49,6 +49,55 @@ give; statsmodels starts it diffuse (see
 :doc:`../design/cycle_initialization`). Its period is kept within
 ``period_bounds``.
 
+Trends
+------
+
+The level and slope disturbances of :class:`~ssfortran.Trend` can be
+dropped separately (DK §3.2.1):
+
+.. list-table::
+   :header-rows: 1
+
+   * - component
+     - disturbances
+     - model
+   * - ``Trend()``
+     - level and slope
+     - local linear trend
+   * - ``Trend(level_cov=None)``
+     - slope only
+     - smooth trend (integrated random walk)
+   * - ``Trend(slope_cov=None)``
+     - level only
+     - random walk with a fixed drift
+   * - ``Trend(level_cov=None, slope_cov=None)``
+     - none
+     - deterministic linear trend
+   * - ``Level()``
+     - level
+     - random walk, no slope
+
+Without a level disturbance the trend changes only through its slope, so it
+bends rather than jumps, and the irregular takes up the short-term
+variation. With an irregular, the smooth trend is the discrete-time
+smoothing spline (DK §3.9.1). For the Nile data:
+
+>>> nile = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]
+>>> llt = ss.StructuralModel(nile, [ss.Irregular(), ss.Trend()])
+>>> smooth = ss.StructuralModel(nile, [ss.Irregular(), ss.Trend(level_cov=None)])
+>>> smooth.param_names
+['sigma2.irregular', 'sigma2.slope']
+>>> res_llt, res_smooth = llt.fit(), smooth.fit()
+>>> def roughness(res):  # sum of squared second differences of the trend
+...     return np.sum(np.diff(res.components()["trend"], 2) ** 2)
+>>> bool(roughness(res_smooth) < roughness(res_llt) / 100)
+True
+>>> print(f"AIC {res_llt.aic:.0f} (local linear), {res_smooth.aic:.0f} (smooth)")
+AIC 1273 (local linear), 1276 (smooth)
+
+The data slightly prefer the local linear trend, which follows the 1899
+drop in flow as a jump; the smooth trend spreads it over several years.
+
 Regression and interventions
 ----------------------------
 

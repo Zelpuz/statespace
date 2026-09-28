@@ -2,8 +2,8 @@
 
 This library follows Durbin and Koopman, *Time Series Analysis by State Space Methods*
 (2nd ed., 2012). Where statsmodels' `tsa.statespace` makes a different choice,
-we follow DK. This page lists those choices, the features only one of the two libraries
-has, and the statsmodels bugs we found while building the test fixtures.
+we follow DK. This page lists those choices and the features only one of the two
+libraries has.
 
 The comparison is against **statsmodels 0.15.0** (the version in `.venv`). Section
 numbers refer to DK. Full citations are in [references.md](references.md).
@@ -173,38 +173,9 @@ future exog.
 | OPG (the default) and robust covariance types | Ours has only the numerical Hessian |
 | pandas indexes and plots; prediction objects for time-varying models, news, impulse responses, `append`/`extend` | Out of scope. `ssfortran` returns numpy arrays; it has fitted values, residuals, forecasts with intervals (time-invariant models), component decompositions and a summary with residual tests |
 
-## Known statsmodels bugs
+## Comparing results
 
-These were found while comparing against statsmodels and confirmed against DK or
-against an independent route to the same result. We have not reported them upstream.
-
-1. **The exact diffuse smoother uses the wrong transition matrix when T varies.**
-   - **Where:** `_smoothers/_univariate_diffuse.pyx.in`, around line 416. The source has
-     a `TODO` asking whether this is the right transition matrix when the matrices vary
-     over time.
-   - **Effect:** r and r⁽¹⁾ are propagated with `model._transition`, the current
-     period's T, instead of the previous period's. When T changes inside the diffuse
-     period, the smoothed states are wrong.
-   - **Evidence:** in the `mv_diffuse_timevarying` fixture, statsmodels' α̂ stays 1.46
-     away from the large-κ approximate-diffuse limit for every κ, while ours converges
-     at the rate 1/κ (test `exact_diffuse_vs_approximate`). Our tests use that fixture
-     only for filter output, and for smoother output after the diffuse period.
-2. **The simulation smoother mishandles a singular P\*.**
-   - **Where:** `_simulation_smoother.pyx.in`, around line 640. `cholesky()` calls
-     `potrf` without checking `info`.
-   - **Effect:** with a mixed diffuse and stationary initialization, P\* is singular,
-     `potrf` fails, and the initial-state variate ends up scaled by the variance
-     instead of the standard deviation. For the AR state in our mixed fixture that
-     gives 398.47 where the standard deviation is expected.
-   - **Evidence:** our test checks this case through the moments of 4000 draws
-     instead of statsmodels' draws.
-3. **The simulation smoother draws unconditional ε for missing elements.** For a
-   missing element of y_t, the drawn ε comes from N(0, H) and ignores the observed
-   elements it is correlated with. This follows from the smoother convention for
-   missing elements (mean 0, variance H) described above. Ours draws from the
-   conditional distribution.
-
-Two more differences can look like bugs but are conventions:
+Two conventions change numbers that look comparable:
 
 - **`loglikelihood_burn`.** UC and SARIMAX leave the first observations out of `llf`
   by default, and a fitted SARIMAX's `llf` leaves out the first d. Use `llf_obs` to

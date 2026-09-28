@@ -48,6 +48,42 @@ It gives the same likelihood as ``ss.ARIMA(order=(1, 0, 1))``. Declared
 models run entirely in Fortran, so they are as fast as the built-in ones
 and :func:`~ssfortran.fit_many` can fit them in parallel.
 
+Starting from components
+------------------------
+
+The built-in components can supply the fixed part of a declared model.
+:meth:`~ssfortran.Model.representation` returns a structural model's
+representation at given parameters: the components' system matrices and
+initialization, with their states in the order the components were given.
+A :class:`~ssfortran.MappedModel` copies it as its template; mapped
+entries overwrite it at each evaluation. Mapping the structural model's
+own parameters reproduces it:
+
+>>> y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]
+>>> st = ss.StructuralModel(y, [ss.Irregular(), ss.Trend()])
+>>> st.param_names
+['sigma2.irregular', 'sigma2.level', 'sigma2.slope']
+>>> rep = st.representation(st.start_params)
+>>> mod = ss.MappedModel(rep, 3, st.param_names, start_params=st.start_params)
+>>> _ = mod.map(0, "obs_cov", 0, 0)       # H = sigma2.irregular
+>>> _ = mod.map(1, "state_cov", 0, 0)     # Q[0, 0] = sigma2.level
+>>> _ = mod.map(2, "state_cov", 1, 1)     # Q[1, 1] = sigma2.slope
+>>> _ = mod.constrain([0, 1, 2], "positive")
+>>> bool(np.isclose(mod.fit().llf, st.fit().llf))
+True
+
+From there, further ``map`` calls add parameters of your own; give the
+model more parameters and names to match. ``rep["transition"]`` and the
+other matrices show the layout to map into.
+
+A map sets an entry to a multiple of one parameter, which covers the
+irregular, level, trend, seasonal and regression components and
+non-seasonal ARIMA. The cycle (:math:`\rho \cos\lambda` in :math:`T`) and
+seasonal ARIMA (products of coefficients) are not of that form. For
+those, use an :class:`~ssfortran.MLEModel` whose ``update`` copies the
+matrices of ``st.representation(params)`` and changes what it needs;
+building the representation at each evaluation costs some speed.
+
 Python models
 -------------
 
