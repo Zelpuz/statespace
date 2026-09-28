@@ -1,7 +1,7 @@
 # Shared library for the Python package (ssfortran) and other C callers.
 # The Fortran-only build and the test suite use fpm (fpm.toml); this build
-# compiles the same sources with -fPIC into libstatespace, with L-BFGS-B
-# fetched at the commit fpm.toml pins.
+# compiles the same sources with -fPIC into libstatespace, with the bundled
+# L-BFGS-B that fpm also uses.
 #
 #   cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake
 #
@@ -15,21 +15,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-include(FetchContent)
-FetchContent_Declare(
-  lbfgsb
-  GIT_REPOSITORY https://github.com/jacobwilliams/lbfgsb.git
-  GIT_TAG ce1a9322016d6f31b652393e000a914b63af6fef
-  SOURCE_SUBDIR no-cmake  # only the sources are used
-)
-FetchContent_MakeAvailable(lbfgsb)
-
+# L-BFGS-B, bundled in third_party/lbfgsb (see its README), so the build needs
+# no network access.
+set(LBFGSB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lbfgsb/src)
 file(GLOB STATESPACE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.f90)
 set(LBFGSB_SOURCES
-  ${lbfgsb_SOURCE_DIR}/src/lbfgsb_kinds_module.F90
-  ${lbfgsb_SOURCE_DIR}/src/lbfgsb_blas_module.F90
-  ${lbfgsb_SOURCE_DIR}/src/lbfgsb_linpack_module.f90
-  ${lbfgsb_SOURCE_DIR}/src/lbfgsb.f90
+  ${LBFGSB_DIR}/lbfgsb_kinds_module.F90
+  ${LBFGSB_DIR}/lbfgsb_blas_module.F90
+  ${LBFGSB_DIR}/lbfgsb_linpack_module.f90
+  ${LBFGSB_DIR}/lbfgsb.f90
 )
 
 add_library(statespace SHARED ${STATESPACE_SOURCES} ${LBFGSB_SOURCES})

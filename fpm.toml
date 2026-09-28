@@ -18,9 +18,9 @@ implicit-external = false
 source-form = "free"
 
 [dependencies]
-# Modern Fortran port of L-BFGS-B 3.0 (Nocedal & Morales), BSD-3.
-lbfgsb.git = "https://github.com/jacobwilliams/lbfgsb"
-lbfgsb.rev = "ce1a9322016d6f31b652393e000a914b63af6fef"
+# Modern Fortran port of L-BFGS-B 3.0 (Nocedal & Morales), BSD-3, bundled in
+# third_party/lbfgsb at commit ce1a9322 (see its README).
+lbfgsb.path = "third_party/lbfgsb"
 
 [dev-dependencies]
 test-drive.git = "https://github.com/fortran-lang/test-drive"
