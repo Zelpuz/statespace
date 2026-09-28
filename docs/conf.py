@@ -14,9 +14,9 @@ sys.path.insert(0, str(ROOT / "python" / "src"))
 os.environ.setdefault("SSFORTRAN_LIB", str(ROOT / "build" / "cmake" / "libstatespace.so"))
 
 project = "statespace"
-author = "zelpuz"
-copyright = "2026, zelpuz"
-release = "0.1.0"
+author = "Taylor D. Edwards"
+copyright = "2026, Taylor D. Edwards"
+release = "0.1.1"
 
 extensions = [
     "sphinx.ext.autodoc",

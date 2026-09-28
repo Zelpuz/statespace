@@ -1,9 +1,9 @@
 name = "statespace"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
-author = "zelpuz"
+author = "Taylor D. Edwards"
 maintainer = "td.edwards@yahoo.com"
-copyright = "Copyright 2026, zelpuz"
+copyright = "Copyright 2026, Taylor D. Edwards"
 [build]
 auto-executables = true
 auto-tests = true

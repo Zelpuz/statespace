@@ -24,7 +24,7 @@ module statespace_capi
   implicit none
   private
 
-  character(len=*), parameter :: version = "0.1.0"
+  character(len=*), parameter :: version = "0.1.1"
 
   !> Codes for the representation's arrays in ss_rep_set.
   integer(c_int), parameter, public :: SS_ARR_Y = 1, SS_ARR_Z = 2, SS_ARR_H = 3, SS_ARR_T = 4, &

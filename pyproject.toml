@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "third_party/lbfgsb/License.txt"]
 requires-python = ">=3.10"
 dependencies = ["numpy"]
-authors = [{ name = "zelpuz" }]
+authors = [{ name = "Taylor D. Edwards" }]
 keywords = ["state space", "kalman filter", "kalman smoother", "time series",
             "structural time series", "unobserved components", "durbin koopman"]
 classifiers = [
