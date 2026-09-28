@@ -25,10 +25,10 @@ library; `ssfortran` is its Python package.
   (SUTSE), and can load on common signals.
 
 The documentation (user guide, examples, design notes, and Python, Fortran and C
-references) builds with `make -C docs html`; see [docs/install.rst](docs/install.rst).
+references) builds with `make -C docs html`; see [docs/install.rst](https://github.com/Zelpuz/statespace/blob/master/docs/install.rst).
 The illustrations of DK chapter 8 are reproduced in `example/`. Differences from
 statsmodels' `tsa.statespace` are listed in
-[docs/statsmodels_differences.md](docs/statsmodels_differences.md).
+[docs/statsmodels_differences.md](https://github.com/Zelpuz/statespace/blob/master/docs/statsmodels_differences.md).
 
 ## Fortran
 
@@ -48,18 +48,22 @@ assembled from components with `structural_model` (see `example/dk_8_2_seatbelt.
 
 ## Python
 
-`pip` builds the shared library with CMake through scikit-build-core. It needs
-gfortran, LAPACK and BLAS installed.
-
 ```sh
-pip install .              # or: pip install .[test] && pytest
+pip install ssfortran
+# or
+uv add ssfortran           # in a uv project; or: uv pip install ssfortran
 ```
+
+Wheels for Linux (x86_64 and aarch64, glibc 2.28 or later) include the compiled
+library, gfortran's runtime and OpenBLAS, so they need no compiler. On other
+platforms pip and uv build from the source distribution, which needs gfortran,
+LAPACK and BLAS. The package needs Python 3.10 or later and numpy.
 
 ```python
 import numpy as np
 import ssfortran as ss
 
-y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]
+y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]  # from this repository
 
 # Built-in components
 mod = ss.StructuralModel(y, [ss.Irregular(), ss.Level()])
@@ -99,7 +103,8 @@ For the timing comparison with statsmodels from Python, run
 series with `fit_many`. `example/bench.f90` and `bench/bench_statsmodels.py` compare
 the Fortran core directly.
 
-To develop without installing:
+To install from a clone, `pip install .` (or `uv pip install .`). To develop without
+installing:
 
 ```sh
 cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake
@@ -108,6 +113,6 @@ pytest            # uses python/src and build/cmake (pyproject.toml)
 
 ## License
 
-MIT (see [LICENSE](LICENSE)); third-party notices are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and citations in
-[docs/references.md](docs/references.md).
+MIT (see [LICENSE](https://github.com/Zelpuz/statespace/blob/master/LICENSE)); third-party notices are in
+[THIRD_PARTY_NOTICES.md](https://github.com/Zelpuz/statespace/blob/master/THIRD_PARTY_NOTICES.md), and citations in
+[docs/references.md](https://github.com/Zelpuz/statespace/blob/master/docs/references.md).

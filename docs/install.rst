@@ -12,7 +12,17 @@ Requirements
 Python
 ------
 
-From the repository root::
+From PyPI, with pip or uv::
+
+   pip install ssfortran
+   uv add ssfortran             # in a uv project; or: uv pip install ssfortran
+
+Wheels for Linux (x86_64 and aarch64, glibc 2.28 or later) include the
+compiled library, gfortran's runtime and OpenBLAS, and need no compiler. On
+other platforms pip and uv build from the source distribution, which needs
+the compiler and libraries listed above.
+
+From a clone of the repository::
 
    pip install .
 
