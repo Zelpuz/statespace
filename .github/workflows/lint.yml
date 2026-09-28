@@ -1,0 +1,32 @@
+# Formatting and lint checks: ruff for Python, Fortitude for Fortran. Both use
+# the settings in the repository (pyproject.toml, fpm.toml) and check every
+# file, so new files are covered. They report problems; they do not fix them.
+# Locally: pip install --group lint, then the three commands below.
+name: lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install the pinned tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --group lint
+      - name: ruff format
+        if: ${{ !cancelled() }}
+        run: ruff format --check --diff .
+      - name: ruff check
+        if: ${{ !cancelled() }}
+        run: ruff check --output-format github .
+      - name: fortitude check
+        if: ${{ !cancelled() }}
+        run: fortitude check --output-format github
