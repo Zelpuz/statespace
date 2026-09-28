@@ -42,7 +42,7 @@ class LocalLevel(ss.MLEModel):
         self["design"] = [[1.0]]
         self["transition"] = [[1.0]]
         self["selection"] = [[1.0]]
-        self.ssm.initialize_diffuse()
+        self.initialize_diffuse()
         self._v = np.var(y)
 
     @property

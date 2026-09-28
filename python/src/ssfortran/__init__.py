@@ -3,11 +3,11 @@
 ``ssfortran`` covers Part I of Durbin and Koopman, *Time Series Analysis by
 State Space Methods* (2nd ed., 2012), cited as DK:
 
-* :class:`Representation`: the model's matrices and the algorithms of DK
-  ch. 4-7 (filtering, smoothing, likelihood, simulation, forecasting,
-  diagnostics);
 * :class:`StructuralModel`, :class:`MappedModel`, :class:`MLEModel`:
   models with parameters, estimated by maximum likelihood;
+* :class:`Representation`: the system at given parameter values, which
+  each model builds, and the algorithms of DK ch. 4-7 (filtering,
+  smoothing, likelihood, simulation, forecasting, diagnostics);
 * :mod:`ssfortran.diagnostics`: residual tests.
 """
 

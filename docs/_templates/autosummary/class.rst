@@ -4,4 +4,5 @@
 
 .. autoclass:: {{ objname }}
    :members:
+   :inherited-members:
    :special-members: __getitem__, __setitem__

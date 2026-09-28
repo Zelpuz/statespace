@@ -60,11 +60,11 @@ With ``concentrate_scale = True``, H, Q and the proper part of the initial
 variance are relative to a scale :math:`\sigma^2`, estimated in closed form
 at each evaluation (DK §2.10.2); the model then has one parameter fewer.
 
->>> rep = ss.Representation(y, k_states=1)
->>> rep["design"] = rep["transition"] = rep["selection"] = [[1.0]]
->>> rep["obs_cov"] = [[1.0]]
->>> rep.initialize_diffuse()
->>> q = ss.MappedModel(rep, 1, ["q"], start_params=[0.1])
+>>> q = ss.MappedModel(y, k_states=1, k_params=1, param_names=["q"],
+...                    start_params=[0.1])
+>>> q["design"] = q["transition"] = q["selection"] = [[1.0]]
+>>> q["obs_cov"] = [[1.0]]
+>>> q.initialize_diffuse()
 >>> _ = q.map(0, "state_cov", 0, 0).constrain(0, "positive")
 >>> q.concentrate_scale = True
 >>> rq = q.fit(factr=10, pgtol=1e-9)

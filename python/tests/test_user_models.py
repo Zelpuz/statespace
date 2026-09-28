@@ -9,7 +9,21 @@ from _fixtures import read_fixture
 NILE = read_fixture("nile_llevel_exact")["y"].ravel()
 
 
-def local_level_template(y):
+def local_level(y, **kwargs):
+    """The local level model as a MappedModel, set up directly."""
+    mod = ss.MappedModel(
+        y, k_states=1, k_params=2, start_params=[y.var() / 2] * 2, **kwargs
+    )
+    mod["design"] = mod["transition"] = mod["selection"] = [[1.0]]
+    mod.initialize_diffuse()
+    return (
+        mod.map(0, "obs_cov", 0, 0)
+        .map(1, "state_cov", 0, 0)
+        .constrain([0, 1], "positive")
+    )
+
+
+def local_level_rep(y):
     rep = ss.Representation(y, k_states=1)
     rep["design"] = [[1.0]]
     rep["transition"] = [[1.0]]
@@ -19,13 +33,7 @@ def local_level_template(y):
 
 
 def test_mapped_local_level_matches_structural():
-    mod = ss.MappedModel(
-        local_level_template(NILE),
-        2,
-        ["sigma2.irregular", "sigma2.level"],
-        start_params=[NILE.var() / 2] * 2,
-    )
-    mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0).constrain([0, 1], "positive")
+    mod = local_level(NILE, param_names=["sigma2.irregular", "sigma2.level"])
     ref = ss.StructuralModel(NILE, [ss.Irregular(), ss.Level()])
     assert mod.loglike([15099.0, 1469.1]) == pytest.approx(
         ref.loglike([15099.0, 1469.1]), rel=1e-12
@@ -39,15 +47,37 @@ def test_mapped_local_level_matches_structural():
     assert r1.analytic_gradient
 
 
+def test_mapped_from_representation():
+    """A Representation in place of the data: by keyword, or with the 0.1
+    positional arguments, which warn."""
+    ref = local_level(NILE).loglike([15099.0, 1469.1])
+    kw = ss.MappedModel(local_level_rep(NILE), k_params=2, param_names=["a", "b"])
+    with pytest.warns(DeprecationWarning):
+        pos = ss.MappedModel(local_level_rep(NILE), 2, ["a", "b"], [1.0, 2.0])
+    assert pos.param_names == ["a", "b"] and np.allclose(pos.start_params, [1, 2])
+    for m in (kw, pos):
+        m.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
+        assert m.loglike([15099.0, 1469.1]) == pytest.approx(ref, rel=1e-12)
+
+
+def test_mapped_setup_errors():
+    with pytest.raises(TypeError, match="k_states"):
+        ss.MappedModel(NILE, k_params=2)
+    with pytest.raises(TypeError, match="k_params"):
+        ss.MappedModel(NILE, k_states=1)
+    mod = local_level(NILE)
+    assert mod["transition"].shape == (1, 1)
+    with pytest.raises(ss.StateSpaceError):  # period 5 of a time-invariant matrix
+        mod.map(0, "design", 0, 0, t=5)
+
+
 def test_mapped_covariance_blocks():
     fx = read_fixture("mv_invariant")
     y = fx["y"].T[:, :2]
-    rep = ss.Representation(y, k_states=2)
-    rep["design"] = np.eye(2)
-    rep["transition"] = np.eye(2)
-    rep["selection"] = np.eye(2)
-    rep.initialize_diffuse()
-    mod = ss.MappedModel(rep, 6).cov(0, "obs_cov", 0, 2).cov(3, "state_cov", 0, 2)
+    mod = ss.MappedModel(y, k_states=2, k_params=6)
+    mod["design"] = mod["transition"] = mod["selection"] = np.eye(2)
+    mod.initialize_diffuse()
+    mod.cov(0, "obs_cov", 0, 2).cov(3, "state_cov", 0, 2)
     ref = ss.StructuralModel(y, [ss.Irregular(cov="full"), ss.Level(cov="full")])
     params = [1.0, 0.3, 2.0, 0.5, 0.1, 0.4]
     assert mod.loglike(params) == pytest.approx(ref.loglike(params), rel=1e-12)
@@ -58,12 +88,13 @@ def test_mapped_covariance_blocks():
 
 def test_mapped_arma_matches_arima():
     y = read_fixture("arima_201")["y"].ravel()
-    rep = ss.Representation(y, k_states=2, k_posdef=1)
-    rep["design"] = [[1.0, 0.0]]
-    rep["transition"] = [[0.0, 1.0], [0.0, 0.0]]
-    rep["selection"] = [[1.0], [0.0]]
-    rep.initialize_stationary()
-    mod = ss.MappedModel(rep, 3, start_params=[0.0, 0.0, y.var()])
+    mod = ss.MappedModel(
+        y, k_states=2, k_posdef=1, k_params=3, start_params=[0.0, 0.0, y.var()]
+    )
+    mod["design"] = [[1.0, 0.0]]
+    mod["transition"] = [[0.0, 1.0], [0.0, 0.0]]
+    mod["selection"] = [[1.0], [0.0]]
+    mod.initialize_stationary()
     mod.map(0, "transition", 0, 0).map(1, "selection", 1, 0).map(2, "state_cov", 0, 0)
     mod.constrain(0, "stationary").constrain(1, "invertible").constrain(2, "positive")
     ref = ss.StructuralModel(y, [ss.ARIMA(order=(1, 0, 1))])
@@ -78,7 +109,7 @@ class LocalLevel(ss.MLEModel):
         self["design"] = [[1.0]]
         self["transition"] = [[1.0]]
         self["selection"] = [[1.0]]
-        self.ssm.initialize_diffuse()
+        self.initialize_diffuse()
         self.calls = 0
 
     @property
@@ -129,16 +160,7 @@ def test_mlemodel_errors_propagate():
 
 
 def test_fit_many_models():
-    mapped = []
-    for i in range(3):
-        m = ss.MappedModel(
-            local_level_template(NILE[i * 10 :]), 2, start_params=[NILE.var() / 2] * 2
-        )
-        mapped.append(
-            m.map(0, "obs_cov", 0, 0)
-            .map(1, "state_cov", 0, 0)
-            .constrain([0, 1], "positive")
-        )
+    mapped = [local_level(NILE[i * 10 :]) for i in range(3)]
     res = ss.fit_many(mapped)
     assert all(r is not None and r.converged for r in res)
     with pytest.raises(TypeError):

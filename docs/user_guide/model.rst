@@ -18,8 +18,12 @@ The representation
 ------------------
 
 A :class:`~ssfortran.Representation` (Fortran ``ssm_rep_t``) holds the data,
-the system matrices and the distribution of :math:`\alpha_1`. The names
-follow statsmodels:
+the system matrices and the distribution of :math:`\alpha_1`: the model at
+given parameter values. Models build and own one; a
+:class:`~ssfortran.MappedModel` or :class:`~ssfortran.MLEModel` sets its
+matrices with ``mod[name] = value``. Working with a Representation directly
+serves to run the filters, smoothers and other algorithms at fixed values
+(:doc:`filtering`). The names follow statsmodels:
 
 =================== ======== ========== ===================
 Python              Fortran  symbol     shape

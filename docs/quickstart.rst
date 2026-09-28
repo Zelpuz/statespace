@@ -35,15 +35,23 @@ The smoothed level and its variance:
 >>> np.round(level[:3])
 array([1112., 1111., 1105.])
 
-The same model from its matrices:
+The same model declared from its matrices, with the two variances as
+parameters (:doc:`user_guide/custom_models`):
 
->>> rep = ss.Representation(y, k_states=1)
->>> rep["design"] = rep["transition"] = rep["selection"] = [[1.0]]
->>> rep["obs_cov"] = [[15099.0]]
->>> rep["state_cov"] = [[1469.1]]
->>> rep.initialize_diffuse()
->>> round(rep.loglike(), 4)
--633.4646
+>>> mod = ss.MappedModel(y, k_states=1, k_params=2,
+...                      param_names=["sigma2.irregular", "sigma2.level"],
+...                      start_params=[np.var(y) / 2, np.var(y) / 2])
+>>> mod["design"] = mod["transition"] = mod["selection"] = [[1.0]]
+>>> mod.initialize_diffuse()
+>>> _ = mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
+>>> _ = mod.constrain([0, 1], "positive")
+>>> res = mod.fit(factr=10, pgtol=1e-9)
+>>> np.round(res.params)
+array([15099.,  1469.])
+
+Every model builds its :class:`~ssfortran.Representation`, the system at
+given parameter values. ``mod.representation(res.params)`` returns it, to
+run the other algorithms of DK Part I (:doc:`user_guide/filtering`).
 
 Fortran
 -------

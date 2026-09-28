@@ -152,17 +152,13 @@ def test_common_levels_loadings():
 
 def local_level_q(y):
     """Local level with H = 1 and Q = q, for a concentrated scale."""
-    rep = ss.Representation(y, k_states=1)
-    rep["design"] = [[1.0]]
-    rep["transition"] = [[1.0]]
-    rep["selection"] = [[1.0]]
-    rep["obs_cov"] = [[1.0]]
-    rep.initialize_diffuse()
-    return (
-        ss.MappedModel(rep, 1, ["q"], start_params=[0.1])
-        .map(0, "state_cov", 0, 0)
-        .constrain(0, "positive")
+    mod = ss.MappedModel(
+        y, k_states=1, k_params=1, param_names=["q"], start_params=[0.1]
     )
+    mod["design"] = mod["transition"] = mod["selection"] = [[1.0]]
+    mod["obs_cov"] = [[1.0]]
+    mod.initialize_diffuse()
+    return mod.map(0, "state_cov", 0, 0).constrain(0, "positive")
 
 
 def test_concentrated_scale():
@@ -175,18 +171,16 @@ def test_concentrated_scale():
 
     # AR(2) with the variance concentrated out, as test_concentrated_ar2_fit
     y2 = read_fixture("ar2")["y"].ravel()
-    rep = ss.Representation(y2, k_states=2, k_posdef=1)
-    rep["design"] = [[1.0, 0.0]]
-    rep["transition"] = [[0.0, 0.0], [1.0, 0.0]]
-    rep["selection"] = [[1.0], [0.0]]
-    rep["state_cov"] = [[1.0]]
-    rep.initialize_stationary()
-    ar2 = (
-        ss.MappedModel(rep, 2, start_params=[0.0, 0.0])
-        .map(0, "transition", 0, 0)
-        .map(1, "transition", 0, 1)
-        .constrain([0, 1], "stationary")
+    ar2 = ss.MappedModel(
+        y2, k_states=2, k_posdef=1, k_params=2, start_params=[0.0, 0.0]
     )
+    ar2["design"] = [[1.0, 0.0]]
+    ar2["transition"] = [[0.0, 0.0], [1.0, 0.0]]
+    ar2["selection"] = [[1.0], [0.0]]
+    ar2["state_cov"] = [[1.0]]
+    ar2.initialize_stationary()
+    ar2.map(0, "transition", 0, 0).map(1, "transition", 0, 1)
+    ar2.constrain([0, 1], "stationary")
     ar2.concentrate_scale = True
     res = ar2.fit(factr=10.0, pgtol=1e-9)
     assert abs(res.llf - cx["ar2_llf"][0]) < 1e-8

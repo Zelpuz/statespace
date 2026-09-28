@@ -13,6 +13,9 @@ A model maps a parameter vector to the system matrices of a
 
 The first two run entirely in Fortran and can be fitted in parallel with
 :func:`fit_many`; the third calls Python at every likelihood evaluation.
+Declared and Python models are set up on the model itself: fixed matrices
+with ``mod[name] = value``, the initialization with the ``initialize_*``
+methods.
 
 Estimation (:meth:`Model.fit`) maximizes the log likelihood with L-BFGS-B
 over the unconstrained parameters. The gradient uses the analytic score of
@@ -21,7 +24,9 @@ central differences for parameters in Z or T.
 """
 
 import ctypes
+import functools
 import math
+import warnings
 import weakref
 from dataclasses import dataclass, field
 from statistics import NormalDist
@@ -639,7 +644,9 @@ class Model:
 
         Changes to it, such as ``filter_method`` or ``tol_steady``, apply to
         later likelihood evaluations. Its system matrices reflect the last
-        parameters evaluated.
+        parameters evaluated. :class:`MappedModel` and :class:`MLEModel` set
+        its matrices and initialization through ``mod[name] = value`` and
+        their ``initialize_*`` methods.
         """
         h = ctypes.c_void_p()
         self._call("ss_model_rep", self._h, ctypes.byref(h))
@@ -1135,7 +1142,38 @@ class StructuralModel(Model):
             raise TypeError(f"unknown component {c!r}")
 
 
-class MappedModel(Model):
+def _ssm_method(name):
+    """A model method that calls the method of the same name of its
+    representation, with that method's signature and documentation."""
+    target = getattr(Representation, name)
+
+    @functools.wraps(target)
+    def method(self, *args, **kwargs):
+        return getattr(self.ssm, name)(*args, **kwargs)
+
+    return method
+
+
+class _SystemAccess:
+    """System matrices and initialization, set on the model itself."""
+
+    def __setitem__(self, name, value):
+        """Set a system matrix of the model's representation."""
+        self.ssm[name] = value
+
+    def __getitem__(self, name):
+        """Copy of a system matrix of the model's representation."""
+        return self.ssm[name]
+
+    initialize_known = _ssm_method("initialize_known")
+    initialize_diffuse = _ssm_method("initialize_diffuse")
+    initialize_approximate_diffuse = _ssm_method("initialize_approximate_diffuse")
+    initialize_stationary = _ssm_method("initialize_stationary")
+    initialize = _ssm_method("initialize")
+    initialize_block = _ssm_method("initialize_block")
+
+
+class MappedModel(_SystemAccess, Model):
     """A model declared by the matrix entries each parameter sets.
 
     The declaration is held by the library, so no Python runs during
@@ -1143,10 +1181,16 @@ class MappedModel(Model):
 
     Parameters
     ----------
-    representation : Representation
-        The fixed entries and the initialization; copied.
+    endog : array_like, shape (n,) or (n, p), or Representation
+        Observations, time first; NaN marks missing values. A
+        :class:`Representation` is copied instead, with its matrices and
+        initialization; pass `k_params` and the rest by keyword.
+    k_states : int
+        Number of states m; not used with a Representation.
     k_params : int
         Number of parameters.
+    k_posdef : int, optional
+        Number of state disturbances r; default `k_states`.
     param_names : list of str, optional
         Parameter names; default ``param1``, ``param2``, ...
     start_params : array_like, optional
@@ -1154,24 +1198,29 @@ class MappedModel(Model):
 
     See Also
     --------
+    StructuralModel : Models assembled from built-in components.
     MLEModel : Models whose matrices are set by Python code.
 
     Notes
     -----
-    Declare the map with :meth:`map` (single entries), :meth:`cov`
-    (covariance blocks) and :meth:`constrain` (transforms). Parameters in no
-    transform group are unconstrained.
+    Set the fixed matrices with ``mod[name] = value`` and the
+    initialization with the ``initialize_*`` methods, as on a
+    :class:`Representation`; then declare the map with :meth:`map` (single
+    entries), :meth:`cov` (covariance blocks) and :meth:`constrain`
+    (transforms). Parameters in no transform group are unconstrained. Mapped
+    entries are overwritten at every evaluation. A map to a single period of
+    a time-varying matrix needs that matrix set first.
 
     Examples
     --------
     The local level model:
 
     >>> y = np.cumsum(np.random.default_rng(3).standard_normal(100))
-    >>> rep = ss.Representation(y, k_states=1)
-    >>> rep["design"] = rep["transition"] = rep["selection"] = [[1.0]]
-    >>> rep.initialize_diffuse()
-    >>> mod = ss.MappedModel(rep, 2, ["sigma2.irregular", "sigma2.level"],
+    >>> mod = ss.MappedModel(y, k_states=1, k_params=2,
+    ...                      param_names=["sigma2.irregular", "sigma2.level"],
     ...                      start_params=[0.5, 0.5])
+    >>> mod["design"] = mod["transition"] = mod["selection"] = [[1.0]]
+    >>> mod.initialize_diffuse()
     >>> _ = mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
     >>> _ = mod.constrain([0, 1], "positive")
     >>> res = mod.fit()
@@ -1181,9 +1230,42 @@ class MappedModel(Model):
 
     _GROUPS = {"positive": 1, "interval": 2, "stationary": 3, "invertible": 4}
 
-    def __init__(self, representation, k_params, param_names=None, start_params=None):
+    def __init__(
+        self,
+        endog,
+        k_states=None,
+        k_params=None,
+        k_posdef=None,
+        param_names=None,
+        start_params=None,
+    ):
+        if isinstance(endog, Representation):
+            rep = endog
+            if k_states is not None:
+                # The 0.1 signature, (representation, k_params, param_names,
+                # start_params), called positionally.
+                warnings.warn(
+                    "MappedModel(representation, k_params, ...) with positional "
+                    "arguments is deprecated; pass k_params, param_names and "
+                    "start_params by keyword",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                k_states, k_params, k_posdef, param_names, start_params = (
+                    None,
+                    k_states,
+                    None,
+                    param_names if k_params is None else k_params,
+                    start_params if k_posdef is None else k_posdef,
+                )
+        else:
+            if k_states is None:
+                raise TypeError("MappedModel needs k_states")
+            rep = Representation(endog, k_states, k_posdef)
+        if k_params is None:
+            raise TypeError("MappedModel needs k_params")
         h = ctypes.c_void_p()
-        call("ss_mapped_new", representation._h, int(k_params), ctypes.byref(h))
+        call("ss_mapped_new", rep._h, int(k_params), ctypes.byref(h))
         self._attach(h)
         if param_names is not None:
             if len(param_names) != self.k_params:
@@ -1314,11 +1396,12 @@ class MappedModel(Model):
         return self
 
 
-class MLEModel(Model):
+class MLEModel(_SystemAccess, Model):
     """A model whose system matrices are set by Python code.
 
-    Subclass it as statsmodels' ``MLEModel``: set the fixed matrices and the
-    initialization in ``__init__``, and override
+    Subclass it as statsmodels' ``MLEModel``: set the fixed matrices
+    (``self[name] = value``) and the initialization (``self.initialize_*``)
+    in ``__init__``, and override
 
     * ``update(params)``, which sets the matrices that depend on the
       constrained parameters with ``self[name] = value``;
@@ -1356,7 +1439,7 @@ class MLEModel(Model):
     ...     def __init__(self, y):
     ...         super().__init__(y, k_states=1, k_params=2)
     ...         self["design"] = self["transition"] = self["selection"] = [[1.0]]
-    ...         self.ssm.initialize_diffuse()
+    ...         self.initialize_diffuse()
     ...     @property
     ...     def start_params(self):
     ...         return np.array([1.0, 1.0])
@@ -1402,14 +1485,6 @@ class MLEModel(Model):
     def ssm(self):
         """The model's representation, which ``update`` fills."""
         return self._ssm
-
-    def __setitem__(self, name, value):
-        """Set a system matrix of the model's representation."""
-        self._ssm[name] = value
-
-    def __getitem__(self, name):
-        """Copy of a system matrix of the model's representation."""
-        return self._ssm[name]
 
     def update(self, params):
         """Set the system matrices from the parameters; override this.

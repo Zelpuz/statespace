@@ -18,7 +18,7 @@ os.environ.setdefault(
 project = "statespace"
 author = "Taylor D. Edwards"
 copyright = "2026, Taylor D. Edwards"
-release = "0.1.2"
+release = "0.1.3"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -39,7 +39,7 @@ html_title = "statespace"
 html_theme_options = {"navigation_depth": 3, "show_toc_level": 2}
 
 autosummary_generate = True
-autodoc_default_options = {"members": True, "inherited-members": False}
+autodoc_default_options = {"members": True}
 autodoc_typehints = "none"
 
 numpydoc_show_class_members = False

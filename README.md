@@ -71,20 +71,26 @@ res = mod.fit()
 print(res.summary())
 smoothed = res.smooth().smoothed_state
 
-# Matrix-level: fill the system matrices yourself
-rep = ss.Representation(y, k_states=1)
-rep["design"] = [[1.0]]
-rep["transition"] = [[1.0]]
-rep["selection"] = [[1.0]]
-rep["obs_cov"] = [[15099.0]]
-rep["state_cov"] = [[1469.1]]
-rep.initialize_diffuse()
-print(rep.loglike())
+# Declared from its matrices: fixed entries, then what each parameter sets
+mod = ss.MappedModel(
+    y,
+    k_states=1,
+    k_params=2,
+    param_names=["sigma2.irregular", "sigma2.level"],
+    start_params=[np.var(y) / 2, np.var(y) / 2],
+)
+mod["design"] = mod["transition"] = mod["selection"] = [[1.0]]
+mod.initialize_diffuse()
+mod.map(0, "obs_cov", 0, 0).map(1, "state_cov", 0, 0)
+mod.constrain([0, 1], "positive")
+res = mod.fit()
 ```
 
 Fitting results have `summary()` (estimates with z-tests and intervals, fit
 statistics, residual tests), `fittedvalues`, `resid`, `get_forecast(steps)` with
-`conf_int()`, `components()` and `estimation_bias()`. A `Representation` also offers:
+`conf_int()`, `components()` and `estimation_bias()`. Every model builds a
+`Representation`, the system at given parameter values;
+`mod.representation(res.params)` returns it, and it offers:
 - the other smoothers of DK ch. 4: fast, classical, two-filter, Whittle, fixed-point,
   fixed-lag and updating
 - smoothed covariances between periods, and filtering and smoothing weights

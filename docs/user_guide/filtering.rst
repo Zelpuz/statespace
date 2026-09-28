@@ -27,6 +27,12 @@ and the prediction :math:`a_{t+1} = c_t + T_t a_{t|t}`,
    \log L = -\frac{np}{2} \log 2\pi
             - \frac12 \sum_t \big(\log|F_t| + v_t' F_t^{-1} v_t\big).
 
+The examples on this page run on a :class:`~ssfortran.Representation`
+with known matrices. For a model, ``mod.filter(params)`` and
+``mod.smooth(params)`` do the same at given parameters, ``res.filter()`` and
+``res.smooth()`` at the estimates, and ``mod.representation(params)``
+returns the representation for the other methods below.
+
 >>> y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]
 >>> rep = ss.Representation(y, k_states=1)
 >>> rep["design"] = rep["transition"] = rep["selection"] = [[1.0]]

@@ -22,20 +22,22 @@ Models outside the built-in components are defined in one of three ways.
 Declared models
 ---------------
 
-A :class:`~ssfortran.MappedModel` starts from a
-:class:`~ssfortran.Representation` holding the fixed entries and the
-initialization. :meth:`~ssfortran.MappedModel.map` lets a parameter set an
-entry, :meth:`~ssfortran.MappedModel.cov` a covariance block, and
+A :class:`~ssfortran.MappedModel` is set up in three steps: the fixed
+matrices, as ``mod[name] = value``; the initialization, with the
+``initialize_*`` methods; and the parameters.
+:meth:`~ssfortran.MappedModel.map` lets a parameter set an entry,
+:meth:`~ssfortran.MappedModel.cov` a covariance block, and
 :meth:`~ssfortran.MappedModel.constrain` sets the transforms. An ARMA(1, 1)
 in DK's form (DK §3.4):
 
 >>> y = np.random.default_rng(8).standard_normal(200)
->>> rep = ss.Representation(y, k_states=2, k_posdef=1)
->>> rep["design"] = [[1.0, 0.0]]
->>> rep["transition"] = [[0.0, 1.0], [0.0, 0.0]]
->>> rep["selection"] = [[1.0], [0.0]]
->>> rep.initialize_stationary()
->>> arma = ss.MappedModel(rep, 3, ["ar.L1", "ma.L1", "sigma2"], start_params=[0.0, 0.0, 1.0])
+>>> arma = ss.MappedModel(y, k_states=2, k_posdef=1, k_params=3,
+...                       param_names=["ar.L1", "ma.L1", "sigma2"],
+...                       start_params=[0.0, 0.0, 1.0])
+>>> arma["design"] = [[1.0, 0.0]]
+>>> arma["transition"] = [[0.0, 1.0], [0.0, 0.0]]
+>>> arma["selection"] = [[1.0], [0.0]]
+>>> arma.initialize_stationary()
 >>> _ = arma.map(0, "transition", 0, 0)          # T[0, 0] = phi
 >>> _ = arma.map(1, "selection", 1, 0)           # R[1, 0] = theta
 >>> _ = arma.map(2, "state_cov", 0, 0)           # Q = sigma2
@@ -55,16 +57,18 @@ The built-in components can supply the fixed part of a declared model.
 :meth:`~ssfortran.Model.representation` returns a structural model's
 representation at given parameters: the components' system matrices and
 initialization, with their states in the order the components were given.
-A :class:`~ssfortran.MappedModel` copies it as its template; mapped
-entries overwrite it at each evaluation. Mapping the structural model's
-own parameters reproduces it:
+Passed in place of the data, it becomes a
+:class:`~ssfortran.MappedModel`'s starting matrices and initialization;
+mapped entries overwrite them at each evaluation. Mapping the structural
+model's own parameters reproduces it:
 
 >>> y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]
 >>> st = ss.StructuralModel(y, [ss.Irregular(), ss.Trend()])
 >>> st.param_names
 ['sigma2.irregular', 'sigma2.level', 'sigma2.slope']
 >>> rep = st.representation(st.start_params)
->>> mod = ss.MappedModel(rep, 3, st.param_names, start_params=st.start_params)
+>>> mod = ss.MappedModel(rep, k_params=3, param_names=st.param_names,
+...                      start_params=st.start_params)
 >>> _ = mod.map(0, "obs_cov", 0, 0)       # H = sigma2.irregular
 >>> _ = mod.map(1, "state_cov", 0, 0)     # Q[0, 0] = sigma2.level
 >>> _ = mod.map(2, "state_cov", 1, 1)     # Q[1, 1] = sigma2.slope

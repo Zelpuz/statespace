@@ -13,6 +13,14 @@ statsmodels separates ``Representation`` and ``KalmanFilter`` from
 languages fill the matrices directly, and lets one model produce many
 representations (at different parameters) without copying its logic.
 
+**In Python.** Models own their representation. A ``MappedModel`` or
+``MLEModel`` is set up on the model itself, with ``mod[name] = value`` and
+the ``initialize_*`` methods, which pass through to it; a user building a
+model need not handle a ``Representation``. It stays public as the system
+at given parameter values, on which the algorithms of DK Part I run
+(``model.representation(params)``). A ``MappedModel`` also accepts one in
+place of the data, to start from existing matrices.
+
 The C interface
 ---------------
 
@@ -42,8 +50,8 @@ fpm remains the build for Fortran users and for the tests.
 **Why.** ctypes is part of the standard library, needs no compiled
 extension, and releases the GIL during calls, which ``fit_many`` relies on.
 The wheel is then independent of the Python version. fpm does not build
-shared libraries; CMake does, and fetches L-BFGS-B at the same pinned
-commit as fpm.
+shared libraries; CMake does. Both compile the copy of L-BFGS-B bundled in
+``third_party/lbfgsb``, so a build needs no network access.
 
 **Alternatives.** cffi adds a dependency whose wheels can lag new Python
 versions; Cython or f2py add a compiled extension.

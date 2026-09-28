@@ -11,7 +11,9 @@ A :class:`Representation` holds the linear Gaussian state space model
 
 (DK eq. 3.1, with intercepts) together with the distribution of
 :math:`\\alpha_1`, and runs the algorithms of DK Part I on it: filtering,
-smoothing, likelihood evaluation, simulation and forecasting.
+smoothing, likelihood evaluation, simulation and forecasting. Every model
+builds one (:meth:`~ssfortran.Model.representation`); construct one
+directly to run the algorithms at fixed matrices.
 
 The system matrices take statsmodels' names and shapes, with time as the
 last axis:

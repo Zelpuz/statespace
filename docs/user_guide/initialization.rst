@@ -29,6 +29,10 @@ Kinds
 :meth:`~ssfortran.Representation.initialize_block`
    One of the above for a block of states.
 
+:class:`~ssfortran.MappedModel` and :class:`~ssfortran.MLEModel` have the
+same methods, which initialize the model's representation. The components of
+a :class:`~ssfortran.StructuralModel` set their own (DK §5.6).
+
 A stationary initialization is recomputed from the current matrices at
 every filter run, so it follows the parameters during estimation.
 
