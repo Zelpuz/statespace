@@ -18,7 +18,7 @@ os.environ.setdefault(
 project = "statespace"
 author = "Taylor D. Edwards"
 copyright = "2026, Taylor D. Edwards"
-release = "0.1.1"
+release = "0.1.2"
 
 extensions = [
     "sphinx.ext.autodoc",
