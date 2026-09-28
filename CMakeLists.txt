@@ -7,7 +7,7 @@
 #
 # Python wheels are built through scikit-build-core (pyproject.toml).
 cmake_minimum_required(VERSION 3.24)
-project(statespace VERSION 0.1.2 LANGUAGES Fortran)
+project(statespace VERSION 0.1.3 LANGUAGES Fortran)
 
 option(STATESPACE_OPENMP "Build fit_many with OpenMP" ON)
 
