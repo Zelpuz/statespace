@@ -1,5 +1,5 @@
 """pytest setup for the docstring examples (pytest --doctest-modules
-python/ssfortran): numpy and ssfortran are available as np and ss."""
+python/src/ssfortran): numpy and ssfortran are available as np and ss."""
 
 import numpy as np
 import pytest

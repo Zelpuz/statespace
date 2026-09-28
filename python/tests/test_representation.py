@@ -60,5 +60,3 @@ def test_options_and_errors():
     assert e.value.code == 6
 
 
-def test_version():
-    assert ss.__version__ == "0.1.0"

@@ -103,7 +103,7 @@ To develop without installing:
 
 ```sh
 cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake
-PYTHONPATH=python pytest python/tests
+pytest            # uses python/src and build/cmake (pyproject.toml)
 ```
 
 ## License

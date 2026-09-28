@@ -73,4 +73,4 @@ Callback models cannot run on ``fit_many``'s threads; both the Python layer
 and the library reject them.
 
 **Where.** ``statespace_mapped``, ``statespace_callback``;
-``python/ssfortran/models.py``.
+``python/src/ssfortran/models.py``.

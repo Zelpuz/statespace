@@ -25,9 +25,20 @@ source tree::
 
    cmake -S . -B build/cmake -G Ninja
    cmake --build build/cmake
-   PYTHONPATH=python pytest python/tests
+   pytest                  # python/src and build/cmake, set in pyproject.toml
 
 ``SSFORTRAN_LIB`` overrides the location of the library.
+
+Linux wheels are built with `cibuildwheel <https://cibuildwheel.pypa.io>`_
+(configuration in ``pyproject.toml``, workflow in
+``.github/workflows/wheels.yml``). Each wheel carries its own gfortran runtime
+and OpenBLAS, so it needs no compiler. To build one locally, with Docker::
+
+   pipx run cibuildwheel --platform linux
+
+The version is written once, in ``src/statespace_capi.f90``;
+``python/tests/test_version.py`` checks the copies in ``fpm.toml``,
+``CMakeLists.txt`` and ``docs/conf.py``.
 
 Fortran
 -------
