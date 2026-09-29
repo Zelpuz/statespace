@@ -44,16 +44,16 @@ module dynamic_nelson_siegel
 
 contains
 
-  function dns_model(y, tau) result(mod)
+  function dns_model(y, tau) result(model)
     real(dp), intent(in) :: y(:, :), tau(:)
-    type(dns_t) :: mod
+    type(dns_t) :: model
 
-    mod%tau = tau
-    mod%k_params = 17
-    mod%rep = ssm_rep(y, m=3, r=3)
-    mod%rep%R(:, :, 1) = eye(3)
-    call mod%rep%initialize_diffuse()
-    call mod%update(mod%start_params())
+    model%tau = tau
+    model%k_params = 17
+    model%rep = ssm_rep(y, m=3, r=3)
+    model%rep%R(:, :, 1) = eye(3)
+    call model%rep%initialize_diffuse()
+    call model%update(model%start_params())
   end function dns_model
 
   !> Nelson-Siegel loadings (N x 3).
@@ -184,7 +184,7 @@ program dk_8_6_yield_curve
                                            "84 ", "120"]
   character(len=32), allocatable :: names(:)
   real(dp), allocatable :: data(:, :), y(:, :), adjust(:), Phi(:, :)
-  type(dns_t) :: mod
+  type(dns_t) :: model
   type(fit_result_t) :: res
   type(fit_options_t) :: opts
   type(filter_result_t) :: fres, cfres
@@ -199,11 +199,11 @@ program dk_8_6_yield_curve
     y(i, :) = column(names, data, "m"//trim(col(i)))
   end do
 
-  mod = dns_model(y, tau)
+  model = dns_model(y, tau)
   opts%factr = 1.0e3_dp
   opts%pgtol = 1.0e-7_dp
   opts%maxiter = 2000
-  call fit(mod, res, options=opts, info=info)
+  call fit(model, res, options=opts, info=info)
   if (info /= SS_OK .and. info /= SS_ERR_NOT_PD) error stop "fit"
   print '(a)', trim(res%message)
   print '(a, f10.4, a, f10.5)', "lambda: ", res%params(1), "   sigma2: ", res%params(2)
@@ -217,9 +217,9 @@ program dk_8_6_yield_curve
   print '(a, f12.3)', "log likelihood: ", res%llf
 
   ! The collapsed model (DK 6.5) gives the same likelihood and factors
-  call mod%smooth(res%params, fres, sres, info)
+  call model%smooth(res%params, fres, sres, info)
   allocate (adjust(n))
-  call collapse_observations(mod%rep, crep, adjust, info)
+  call collapse_observations(model%rep, crep, adjust, info)
   if (info /= SS_OK) error stop "collapse"
   call kalman_filter(crep, cfres, info)
   call state_smoother(crep, cfres, csres, info)

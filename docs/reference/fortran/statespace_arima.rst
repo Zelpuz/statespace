@@ -53,4 +53,4 @@ An ARMA(1, 1) with a constant (DK §5.6.4):
    type(component_holder_t) :: comps(2)
    comps(1)%c = regression_t(x=reshape(spread(1.0_dp, 1, n), [n, 1]))
    comps(2)%c = arima_t(ar=1, ma=1)
-   mod = structural_model(y, comps, info)
+   model = structural_model(y, comps, info)

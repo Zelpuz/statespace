@@ -49,26 +49,26 @@ contains
   end subroutine check_close
 
   !> Smoothed signal of component i: its block of Z times its block of alphahat.
-  function signal(mod, sres, i) result(s)
-    type(structural_model_t), intent(in) :: mod
+  function signal(model, sres, i) result(s)
+    type(structural_model_t), intent(in) :: model
     type(smoother_result_t), intent(in) :: sres
     integer, intent(in) :: i
     real(dp), allocatable :: s(:)
     integer :: t, a, m, iz
 
-    a = mod%s0(i)
-    m = mod%comps(i)%c%m
-    allocate (s(mod%rep%nobs))
-    do t = 1, mod%rep%nobs
-      iz = min(t, size(mod%rep%Z, 3))
-      s(t) = dot_product(mod%rep%Z(1, a + 1:a + m, iz), sres%alphahat(a + 1:a + m, t))
+    a = model%s0(i)
+    m = model%comps(i)%c%m
+    allocate (s(model%rep%nobs))
+    do t = 1, model%rep%nobs
+      iz = min(t, size(model%rep%Z, 3))
+      s(t) = dot_product(model%rep%Z(1, a + 1:a + m, iz), sres%alphahat(a + 1:a + m, t))
     end do
   end function signal
 
   !> Assemble, smooth at the fixture's parameters, and compare llf_obs.
-  subroutine run(error, mod, comps, fx, params, fres, sres)
+  subroutine run(error, model, comps, fx, params, fres, sres)
     type(error_type), allocatable, intent(out) :: error
-    type(structural_model_t), intent(out) :: mod
+    type(structural_model_t), intent(out) :: model
     type(component_holder_t), intent(in) :: comps(:)
     type(fixture_t), intent(in) :: fx
     real(dp), intent(in) :: params(:)
@@ -76,12 +76,12 @@ contains
     type(smoother_result_t), intent(out) :: sres
     integer :: info
 
-    mod = structural_model(fx%get2('y'), comps, info)
+    model = structural_model(fx%get2('y'), comps, info)
     call check(error, info, SS_OK, "structural_model info")
     if (allocated(error)) return
-    call check(error, mod%k_params, size(params), "number of parameters")
+    call check(error, model%k_params, size(params), "number of parameters")
     if (allocated(error)) return
-    call mod%smooth(params, fres, sres, info)
+    call model%smooth(params, fres, sres, info)
     call check(error, info, SS_OK, "smooth info")
     if (allocated(error)) return
     call check_close(error, fres%llf_obs, fx%get1('llf_obs'), "llf_obs")
@@ -91,7 +91,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
 
@@ -99,20 +99,22 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (trend_t :: comps(2)%c)
     comps(3)%c = seasonal_t(period=4, form=SEASONAL_DUMMY)
-    call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
+    call run(error, model, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
-    call check_close(error, sres%alphahat(mod%s0(2) + 1, :), fx%get1('level'), "level")
+    call check_close(error, sres%alphahat(model%s0(2) + 1, :), fx%get1('level'), &
+                     "level")
     if (allocated(error)) return
-    call check_close(error, sres%alphahat(mod%s0(2) + 2, :), fx%get1('trend'), "slope")
+    call check_close(error, sres%alphahat(model%s0(2) + 2, :), fx%get1('trend'), &
+                     "slope")
     if (allocated(error)) return
-    call check_close(error, signal(mod, sres, 3), fx%get1('seasonal'), "seasonal")
+    call check_close(error, signal(model, sres, 3), fx%get1('seasonal'), "seasonal")
   end subroutine test_bsm
 
   subroutine test_trig(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
 
@@ -120,18 +122,18 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG)
-    call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
+    call run(error, model, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
-    call check(error, mod%comps(3)%c%m, 11, "s - 1 trigonometric states (DK 3.2.3)")
+    call check(error, model%comps(3)%c%m, 11, "s - 1 trigonometric states (DK 3.2.3)")
     if (allocated(error)) return
-    call check_close(error, signal(mod, sres, 3), fx%get1('seasonal'), "seasonal")
+    call check_close(error, signal(model, sres, 3), fx%get1('seasonal'), "seasonal")
   end subroutine test_trig
 
   subroutine test_smooth_trend(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
 
@@ -139,18 +141,19 @@ contains
     allocate (irregular_t :: comps(1)%c)
     comps(2)%c = trend_t(cov_level=COV_NONE)
     comps(3)%c = seasonal_t(period=4)
-    call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
+    call run(error, model, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
-    call check_close(error, sres%alphahat(mod%s0(2) + 1, :), fx%get1('level'), "level")
+    call check_close(error, sres%alphahat(model%s0(2) + 1, :), fx%get1('level'), &
+                     "level")
     if (allocated(error)) return
-    call check_close(error, signal(mod, sres, 3), fx%get1('seasonal'), "seasonal")
+    call check_close(error, signal(model, sres, 3), fx%get1('seasonal'), "seasonal")
   end subroutine test_smooth_trend
 
   subroutine test_cycle(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
 
@@ -158,16 +161,16 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     allocate (cycle_t :: comps(3)%c)
-    call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
+    call run(error, model, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
-    call check_close(error, signal(mod, sres, 3), fx%get1('cycle'), "cycle")
+    call check_close(error, signal(model, sres, 3), fx%get1('cycle'), "cycle")
   end subroutine test_cycle
 
   subroutine test_regression(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     real(dp), allocatable :: x(:, :)
@@ -179,11 +182,13 @@ contains
     ! The intervention is rebuilt with step_intervention (DK 3.2.5).
     comps(3)%c = regression_t(x=reshape([x(:, 1), step_intervention(size(x, 1), 50)], &
                                         shape(x)))
-    call run(error, mod, comps, fx, fx%get1('params'), fres, sres)
+    call run(error, model, comps, fx, fx%get1('params'), fres, sres)
     if (allocated(error)) return
-    call check_close(error, sres%alphahat(mod%s0(2) + 1, :), fx%get1('level'), "level")
+    call check_close(error, sres%alphahat(model%s0(2) + 1, :), fx%get1('level'), &
+                     "level")
     if (allocated(error)) return
-    call check_close(error, sres%alphahat(mod%s0(3) + 1:mod%s0(3) + 2, mod%rep%nobs), &
+    call check_close(error, &
+                     sres%alphahat(model%s0(3) + 1:model%s0(3) + 2, model%rep%nobs), &
                      fx%get1('beta'), "coefficients")
   end subroutine test_regression
 
@@ -191,7 +196,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
 
@@ -199,7 +204,7 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     comps(3)%c = regression_t(x=fx%get2('x'), random_walk=[.true.])
-    call run(error, mod, comps, fx, [0.25_dp, 0.09_dp, 0.01_dp], fres, sres)
+    call run(error, model, comps, fx, [0.25_dp, 0.09_dp, 0.01_dp], fres, sres)
     if (allocated(error)) return
     call check_close(error, pack(sres%alphahat, .true.), fx%get1('alphahat'), &
                      "alphahat")
@@ -251,7 +256,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     real(dp), allocatable :: y2(:, :), p(:)
     integer :: info
 
@@ -259,16 +264,17 @@ contains
     y2 = fx%get2('y')
     comps(1)%c = irregular_t(cov=COV_FULL)
     comps(2)%c = level_t(cov=COV_FULL)
-    mod = structural_model(y2, comps, info)
+    model = structural_model(y2, comps, info)
     p = [1.0_dp, 0.3_dp, 2.0_dp, 0.5_dp, -0.2_dp, 0.4_dp]
-    call check_close(error, mod%transform_params(mod%untransform_params(p)), p, &
+    call check_close(error, model%transform_params(model%untransform_params(p)), p, &
                      "roundtrip")
     if (allocated(error)) return
-    call mod%update(p)
-    call check_close(error, [mod%rep%H(:, :, 1)], [1.0_dp, 0.3_dp, 0.3_dp, 2.0_dp], "H")
+    call model%update(p)
+    call check_close(error, [model%rep%H(:, :, 1)], [1.0_dp, 0.3_dp, 0.3_dp, 2.0_dp], &
+                     "H")
     if (allocated(error)) return
-    call check_close(error, [mod%rep%Q(:, :, 1)], [0.5_dp, -0.2_dp, -0.2_dp, 0.4_dp], &
-                     "Q")
+    call check_close(error, [model%rep%Q(:, :, 1)], &
+                     [0.5_dp, -0.2_dp, -0.2_dp, 0.4_dp], "Q")
     if (allocated(error)) return
     call check(error, info, SS_OK, "info")
   end subroutine test_full_cov
@@ -309,7 +315,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(ssm_rep_t) :: rep
     real(dp), allocatable :: y(:, :)
     real(dp) :: a2, llf
@@ -323,13 +329,14 @@ contains
     comps(3)%c = regression_t(x=reshape(spread(1.0_dp, 1, size(y, 2)), &
                                         [size(y, 2), 1]), series=2, &
                               at_observations=.true.)
-    mod = structural_model(y, comps, info, loading=reshape([1.0_dp, 0.0_dp], [2, 1]), &
-                           loading_free=reshape([.false., .true.], [2, 1]))
+    model = structural_model(y, comps, info, &
+                             loading=reshape([1.0_dp, 0.0_dp], [2, 1]), &
+                             loading_free=reshape([.false., .true.], [2, 1]))
     call check(error, info, SS_OK, "model info")
     if (allocated(error)) return
-    call check(error, mod%k_params, 4, "irregular (2), level (1), loading (1)")
+    call check(error, model%k_params, 4, "irregular (2), level (1), loading (1)")
     if (allocated(error)) return
-    llf = mod%loglike([1.0_dp, 2.0_dp, 0.25_dp, a2], info)
+    llf = model%loglike([1.0_dp, 2.0_dp, 0.25_dp, a2], info)
 
     rep = ssm_rep(y, 2, 1)
     rep%Z(:, :, 1) = reshape([1.0_dp, a2, 0.0_dp, 1.0_dp], [2, 2])
@@ -347,7 +354,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(ssm_rep_t) :: rep
     real(dp) :: L(3, 3), llf
     integer :: info
@@ -356,9 +363,10 @@ contains
     L = reshape([1, 1, 1, 0, 1, 1, 0, 0, 1], [3, 3])
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
-    mod = structural_model(fx%get2('y'), comps, info, loading=L)
-    llf = mod%loglike([1.0_dp, 1.5_dp, 0.5_dp, 0.1_dp, 0.2_dp, 0.3_dp], info)
-    call check_close(error, pack(mod%rep%Z(:, :, 1), .true.), pack(L, .true.), "Z = L")
+    model = structural_model(fx%get2('y'), comps, info, loading=L)
+    llf = model%loglike([1.0_dp, 1.5_dp, 0.5_dp, 0.1_dp, 0.2_dp, 0.3_dp], info)
+    call check_close(error, pack(model%rep%Z(:, :, 1), .true.), pack(L, .true.), &
+                     "Z = L")
     if (allocated(error)) return
     rep = ssm_rep(fx%get2('y'), 3, 3)
     rep%Z(:, :, 1) = L
@@ -378,7 +386,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(ssm_rep_t) :: rep, crep
     real(dp), allocatable :: adj(:)
     real(dp) :: llf
@@ -387,12 +395,12 @@ contains
     fx = load_fixture("test/fixtures/mv_missing.txt")
     allocate (irregular_t :: comps(1)%c)
     comps(2)%c = arima_t(ar=1)
-    mod = structural_model(fx%get2('y'), comps, info, &
+    model = structural_model(fx%get2('y'), comps, info, &
                            loading=reshape([1.0_dp, 0.0_dp, 0.0_dp], [3, 1]), &
                            loading_free=reshape([.false., .true., .true.], [3, 1]))
-    call check(error, mod%k_params, 7, "irregular (3), AR (2), loadings (2)")
+    call check(error, model%k_params, 7, "irregular (3), AR (2), loadings (2)")
     if (allocated(error)) return
-    llf = mod%loglike([1.0_dp, 1.5_dp, 0.5_dp, 0.6_dp, 0.8_dp, -0.4_dp, 1.3_dp], info)
+    llf = model%loglike([1.0_dp, 1.5_dp, 0.5_dp, 0.6_dp, 0.8_dp, -0.4_dp, 1.3_dp], info)
 
     rep = ssm_rep(fx%get2('y'), 1, 1)
     rep%Z(:, 1, 1) = [1.0_dp, -0.4_dp, 1.3_dp]
@@ -404,7 +412,7 @@ contains
     call check_close(error, [llf], [loglike(rep, info)], "llf")
     if (allocated(error)) return
     allocate (adj(rep%nobs))
-    call collapse_observations(mod%rep, crep, adj, info)
+    call collapse_observations(model%rep, crep, adj, info)
     call check_close(error, [loglike(crep, info) + sum(adj)], [llf], "collapsed")
   end subroutine test_dynamic_factor
   !> DK 3.8.1 with unit spacing is the discrete local level.
@@ -473,7 +481,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     real(dp) :: lam
@@ -483,8 +491,8 @@ contains
     lam = sum(fx%get1('lam'))
     allocate (irregular_t :: comps(1)%c)
     comps(2)%c = continuous_trend_t(times=fx%get1('x'))
-    mod = structural_model(fx%get2('y'), comps, info)
-    call mod%smooth([1.0_dp, 1.0_dp / lam], fres, sres, info)
+    model = structural_model(fx%get2('y'), comps, info)
+    call model%smooth([1.0_dp, 1.0_dp / lam], fres, sres, info)
     call check(error, info, SS_OK, "smooth info")
     if (allocated(error)) return
     call check_close(error, sres%alphahat(1, :), fx%get1('fitted'), "spline")
@@ -497,7 +505,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     real(dp), allocatable :: y(:, :), A(:, :), D(:, :), b(:, :)
@@ -511,8 +519,8 @@ contains
     lam = 25.0_dp
     allocate (irregular_t :: comps(1)%c)
     comps(2)%c = trend_t(cov_level=COV_NONE)
-    mod = structural_model(y, comps, info)
-    call mod%smooth([1.0_dp, 1.0_dp / lam], fres, sres, info)
+    model = structural_model(y, comps, info)
+    call model%smooth([1.0_dp, 1.0_dp / lam], fres, sres, info)
     allocate (D(n - 2, n), source=0.0_dp)
     do t = 1, n - 2
       D(t, t:t + 2) = [1.0_dp, -2.0_dp, 1.0_dp]

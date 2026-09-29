@@ -22,7 +22,7 @@ program dk_8_2_seatbelt
   character(len=32), allocatable :: names(:)
   real(dp), allocatable :: data(:, :), y(:, :), x(:, :)
   type(component_holder_t) :: comps(4)
-  type(structural_model_t) :: mod
+  type(structural_model_t) :: model
   type(fit_result_t) :: res
   type(fit_options_t) :: opts
   integer :: info
@@ -37,45 +37,45 @@ program dk_8_2_seatbelt
   allocate (irregular_t :: comps(1)%c)
   allocate (level_t :: comps(2)%c)
   comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG)
-  mod = structural_model(y, comps(1:3), info)
+  model = structural_model(y, comps(1:3), info)
   if (info /= SS_OK) error stop "model"
-  call fit(mod, res, options=opts, info=info)
+  call fit(model, res, options=opts, info=info)
   if (info /= SS_OK) error stop "fit"
   print '(a)', "Basic structural model (DK 8.2)"
-  call report(mod, res)
+  call report(model, res)
 
   ! With the seat belt law and the log petrol price
   allocate (x(n, 2))
   x(:, 1) = log(column(names, data, "PetrolPrice"))
   x(:, 2) = step_intervention(n, t_law)
   comps(4)%c = regression_t(x=x)
-  mod = structural_model(y, comps, info)
+  model = structural_model(y, comps, info)
   if (info /= SS_OK) error stop "model"
-  call fit(mod, res, options=opts, info=info)
+  call fit(model, res, options=opts, info=info)
   if (info /= SS_OK) error stop "fit"
   print '(/, a)', "With petrol price and the seat belt law"
-  call report(mod, res)
-  call coefficients(mod, res)
+  call report(model, res)
+  call coefficients(model, res)
 
 contains
 
-  subroutine report(mod, res)
-    type(structural_model_t), intent(inout) :: mod
+  subroutine report(model, res)
+    type(structural_model_t), intent(inout) :: model
     type(fit_result_t), intent(in) :: res
     type(filter_result_t) :: fres
     character(len=32), allocatable :: pn(:)
     real(dp) :: F(1, 1)
     integer :: i, info
 
-    pn = mod%param_names()
-    do i = 1, mod%k_params
+    pn = model%param_names()
+    do i = 1, model%k_params
       print '(2x, a20, es14.6, a, f9.6, a)', trim(pn(i)), res%params(i), &
           "   (q-ratio ", res%params(i) / res%params(1), ")"
     end do
-    call mod%filter(res%params, fres, info)
+    call model%filter(res%params, fres, info)
     print '(2x, a, f12.3, a, i0, a)', "log likelihood ", res%llf, "   (d = ", &
         fres%nobs_diffuse, ")"
-    call prediction_error_variance(mod%rep, F, info)
+    call prediction_error_variance(model%rep, F, info)
     if (info == SS_OK) then
       print '(2x, a, f12.8)', "prediction error variance ", F(1, 1)
     else
@@ -86,18 +86,18 @@ contains
 
   !> Regression coefficients: the smoothed (= final filtered) states, with
   !> their root mean square errors.
-  subroutine coefficients(mod, res)
-    type(structural_model_t), intent(inout) :: mod
+  subroutine coefficients(model, res)
+    type(structural_model_t), intent(inout) :: model
     type(fit_result_t), intent(in) :: res
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     character(len=8), parameter :: label(2) = ["petrol  ", "law 83.2"]
     integer :: i, j, info
 
-    call mod%smooth(res%params, fres, sres, info)
+    call model%smooth(res%params, fres, sres, info)
     print '(2x, a8, 3a12)', "", "coef", "rmse", "t-value"
     do i = 1, 2
-      j = mod%rep%k_states - 2 + i
+      j = model%rep%k_states - 2 + i
       print '(2x, a8, 3f12.5)', label(i), sres%alphahat(j, n), sqrt(sres%V(j, j, n)), &
         sres%alphahat(j, n) / sqrt(sres%V(j, j, n))
     end do

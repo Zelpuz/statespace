@@ -46,21 +46,21 @@ program dk_8_4_internet
 
 contains
 
-  function arma(y, p, q) result(mod)
+  function arma(y, p, q) result(model)
     real(dp), intent(in) :: y(:, :)
     integer, intent(in) :: p, q
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(component_holder_t) :: comps(1)
     integer :: info
 
     comps(1)%c = arima_t(ar=p, ma=q)
-    mod = structural_model(y, comps, info)
+    model = structural_model(y, comps, info)
     if (info /= SS_OK) error stop "model"
   end function arma
 
   subroutine aic_table(y)
     real(dp), intent(in) :: y(:, :)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     character(len=10) :: cell(0:5)
@@ -74,8 +74,8 @@ contains
       cell = ""
       do q = 0, 5
         if (p == 0 .and. q == 0) cycle
-        mod = arma(y, p, q)
-        call fit(mod, res, options=opts, info=info)
+        model = arma(y, p, q)
+        call fit(model, res, options=opts, info=info)
         if (info /= SS_OK) then
           cell(q) = "failed"
         else
@@ -89,7 +89,7 @@ contains
   subroutine forecasts(y, h)
     real(dp), intent(in) :: y(:, :)
     integer, intent(in) :: h
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(fit_result_t) :: res
     type(filter_result_t) :: fres
     type(forecast_result_t) :: fc
@@ -97,11 +97,11 @@ contains
     real(dp) :: sd
     integer :: j, info
 
-    mod = arma(y, 1, 1)
-    call fit(mod, res, info=info)
+    model = arma(y, 1, 1)
+    call fit(model, res, info=info)
     if (info /= SS_OK) error stop "fit"
-    call mod%filter(res%params, fres, info)
-    call forecast(mod%rep, fres, h, fc, info)
+    call model%filter(res%params, fres, info)
+    call forecast(model%rep, fres, h, fc, info)
     if (info /= SS_OK) error stop "forecast"
     print '(4x, a, 3a10)', "t", "forecast", "lower", "upper"
     do j = 1, h

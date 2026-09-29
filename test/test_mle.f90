@@ -62,16 +62,16 @@ contains
                  new_unittest("fit_many_matches_fit", test_fit_many) ]
   end subroutine collect_mle
 
-  function local_level(y) result(mod)
+  function local_level(y) result(model)
     real(dp), intent(in) :: y(:, :)
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
 
-    mod%k_params = 2
-    mod%rep = ssm_rep(y, 1, 1)
-    mod%rep%Z = 1.0_dp
-    mod%rep%T = 1.0_dp
-    call mod%rep%initialize_approximate_diffuse(1.0e6_dp)
-    mod%rep%loglikelihood_burn = 1
+    model%k_params = 2
+    model%rep = ssm_rep(y, 1, 1)
+    model%rep%Z = 1.0_dp
+    model%rep%T = 1.0_dp
+    call model%rep%initialize_approximate_diffuse(1.0e6_dp)
+    model%rep%loglikelihood_burn = 1
   end function local_level
 
   subroutine ll_update(self, params)
@@ -109,15 +109,15 @@ contains
     unconstrained = unconstrain_positive(constrained)
   end function ll_untransform
 
-  function ar2(y) result(mod)
+  function ar2(y) result(model)
     real(dp), intent(in) :: y(:, :)
-    type(ar2_t) :: mod
+    type(ar2_t) :: model
 
-    mod%k_params = 3
-    mod%rep = ssm_rep(y, 2, 1)
-    mod%rep%Z(1, 1, 1) = 1.0_dp
-    mod%rep%T(2, 1, 1) = 1.0_dp
-    call mod%rep%initialize_stationary()
+    model%k_params = 3
+    model%rep = ssm_rep(y, 2, 1)
+    model%rep%Z(1, 1, 1) = 1.0_dp
+    model%rep%T(2, 1, 1) = 1.0_dp
+    call model%rep%initialize_stationary()
   end function ar2
 
   subroutine ar2_update(self, params)
@@ -186,12 +186,12 @@ contains
     unconstrained = unconstrain_stationary(constrained)
   end function ar2c_untransform
 
-  function nile_model() result(mod)
-    type(local_level_t) :: mod
+  function nile_model() result(model)
+    type(local_level_t) :: model
     type(fixture_t) :: fx
 
     fx = load_fixture("test/fixtures/nile_llevel_known.txt")
-    mod = local_level(fx%get2('y'))
+    model = local_level(fx%get2('y'))
   end function nile_model
 
   pure real(dp) function relerr(actual, expected)
@@ -213,24 +213,24 @@ contains
 
   subroutine test_transform(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     real(dp), parameter :: p(2) = [15099.0_dp, 1469.1_dp]
 
-    mod = nile_model()
-    call check_rel(error, mod%transform_params(mod%untransform_params(p)), p, &
+    model = nile_model()
+    call check_rel(error, model%transform_params(model%untransform_params(p)), p, &
                    1.0e-14_dp, "roundtrip")
   end subroutine test_transform
 
   subroutine test_loglike(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fixture_t) :: fx
     integer :: info
     real(dp) :: llf
 
-    mod = nile_model()
+    model = nile_model()
     fx = load_fixture("test/fixtures/nile_llevel_mle_approx.txt")
-    llf = mod%loglike(fx%get1('params'), info)
+    llf = model%loglike(fx%get1('params'), info)
     call check(error, info, SS_OK, "loglike info")
     if (allocated(error)) return
     call check_rel(error, [llf], fx%get1('llf'), 1.0e-12_dp, "llf")
@@ -240,9 +240,9 @@ contains
   !> relative tolerance on the parameters. The likelihood is flat near the
   !> optimum, so fits with default tolerances (ours and statsmodels') stop
   !> up to ~1% away in sigma2_eta; only the tight fit is checked closely.
-  subroutine check_fit(error, mod, res, info, tol)
+  subroutine check_fit(error, model, res, info, tol)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t), intent(in) :: mod
+    type(local_level_t), intent(in) :: model
     type(fit_result_t), intent(in) :: res
     integer, intent(in) :: info
     real(dp), intent(in) :: tol
@@ -271,64 +271,64 @@ contains
     call check_rel(error, [res%aic, res%bic], &
                    [fx%get1('aic_tight'), fx%get1('bic_tight')], 1.0e-6_dp, "aic/bic")
     if (allocated(error)) return
-    call check_rel(error, [mod%rep%H(1, 1, 1), mod%rep%Q(1, 1, 1)], res%params, &
+    call check_rel(error, [model%rep%H(1, 1, 1), model%rep%Q(1, 1, 1)], res%params, &
                    0.0_dp, "model left at estimates")
   end subroutine check_fit
 
   subroutine test_fit_sm_start(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: res
     type(fixture_t) :: fx
     integer :: info
 
-    mod = nile_model()
+    model = nile_model()
     fx = load_fixture("test/fixtures/nile_llevel_mle_approx.txt")
-    call fit(mod, res, start_params=fx%get1('start_params'), info=info)
-    call check_fit(error, mod, res, info, 2.0e-2_dp)
+    call fit(model, res, start_params=fx%get1('start_params'), info=info)
+    call check_fit(error, model, res, info, 2.0e-2_dp)
   end subroutine test_fit_sm_start
 
   subroutine test_fit_default_start(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: res
     integer :: info
 
-    mod = nile_model()
-    call fit(mod, res, info=info)
-    call check_fit(error, mod, res, info, 2.0e-2_dp)
+    model = nile_model()
+    call fit(model, res, info=info)
+    call check_fit(error, model, res, info, 2.0e-2_dp)
   end subroutine test_fit_default_start
 
   subroutine test_fit_tight(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     integer :: info
 
-    mod = nile_model()
+    model = nile_model()
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
-    call check_fit(error, mod, res, info, 1.0e-4_dp)
+    call fit(model, res, options=opts, info=info)
+    call check_fit(error, model, res, info, 1.0e-4_dp)
   end subroutine test_fit_tight
   !> Exact diffuse Nile local level (DK 2.10): the optimum must match
   !> statsmodels' tightly converged fit and DK's 15099 / 1469.1.
   subroutine test_fit_exact_diffuse(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     type(fixture_t) :: fx
     integer :: info
 
-    mod = nile_model()
-    call mod%rep%initialize_diffuse()
-    mod%rep%loglikelihood_burn = 0
+    model = nile_model()
+    call model%rep%initialize_diffuse()
+    model%rep%loglikelihood_burn = 0
     fx = load_fixture("test/fixtures/nile_llevel_mle_exact.txt")
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
+    call fit(model, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
     call check(error, res%converged, "not converged: "//trim(res%message))
@@ -420,22 +420,22 @@ contains
   subroutine test_concentrated_ar2_fit(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx, cx
-    type(ar2c_t) :: mod
+    type(ar2c_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     integer :: info
 
     fx = load_fixture("test/fixtures/ar2.txt")
     cx = load_fixture("test/fixtures/concentrated.txt")
-    mod%k_params = 2
-    mod%concentrate_scale = .true.
-    mod%rep = ssm_rep(fx%get2('y'), 2, 1)
-    mod%rep%Z(1, 1, 1) = 1.0_dp
-    mod%rep%T(2, 1, 1) = 1.0_dp
-    call mod%rep%initialize_stationary()
+    model%k_params = 2
+    model%concentrate_scale = .true.
+    model%rep = ssm_rep(fx%get2('y'), 2, 1)
+    model%rep%Z(1, 1, 1) = 1.0_dp
+    model%rep%T(2, 1, 1) = 1.0_dp
+    call model%rep%initialize_stationary()
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
+    call fit(model, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
     call check(error, abs(res%llf - sum(cx%get1('ar2_llf'))) < 1.0e-8_dp, "llf")
@@ -453,24 +453,24 @@ contains
   !> gradients, with far fewer likelihood evaluations.
   subroutine test_fit_gradients(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: ra, rn
     type(fit_options_t) :: opts
     integer :: info
     character(len=64) :: buf
 
-    mod = nile_model()
-    call mod%rep%initialize_diffuse()
-    mod%rep%loglikelihood_burn = 0
+    model = nile_model()
+    call model%rep%initialize_diffuse()
+    model%rep%loglikelihood_burn = 0
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, ra, options=opts, info=info)
+    call fit(model, ra, options=opts, info=info)
     call check(error, info, SS_OK, "analytic fit info")
     if (allocated(error)) return
     call check(error, ra%analytic_gradient, "analytic score used")
     if (allocated(error)) return
     opts%gradient = GRADIENT_NUMERICAL
-    call fit(mod, rn, options=opts, info=info)
+    call fit(model, rn, options=opts, info=info)
     call check(error, .not. rn%analytic_gradient, "numerical gradient used")
     if (allocated(error)) return
     call check_rel(error, ra%params, rn%params, 1.0e-5_dp, "same optimum")
@@ -484,7 +484,7 @@ contains
   !> noise (antithetic draws) small next to the estimated bias.
   subroutine test_estimation_bias(error)
     type(error_type), allocatable, intent(out) :: error
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
     type(fit_result_t) :: res, fixed
     type(fit_options_t) :: opts
     type(filter_result_t) :: fres
@@ -494,36 +494,37 @@ contains
     integer :: info, nseed, failed, k
     character(len=64) :: buf
 
-    mod = nile_model()
-    call mod%rep%initialize_diffuse()
-    mod%rep%loglikelihood_burn = 0
+    model = nile_model()
+    call model%rep%initialize_diffuse()
+    model%rep%loglikelihood_burn = 0
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
-    call mod%smooth(res%params, fres, sres, info)
-    allocate (bias(1, mod%rep%nobs), bias2(1, mod%rep%nobs), biasV(1, 1, mod%rep%nobs))
+    call fit(model, res, options=opts, info=info)
+    call model%smooth(res%params, fres, sres, info)
+    allocate (bias(1, model%rep%nobs), bias2(1, model%rep%nobs), &
+              biasV(1, 1, model%rep%nobs))
 
     fixed = res
     fixed%cov_params = 0.0_dp * res%cov_params
-    call estimation_bias(mod, fixed, 4, bias, info, biasV)
+    call estimation_bias(model, fixed, 4, bias, info, biasV)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
     call check(error, maxval(abs(bias)) < 1.0e-9_dp * maxval(abs(sres%alphahat)) &
                .and. maxval(abs(biasV)) < 1.0e-9_dp * maxval(sres%V), &
                "zero covariance gives zero bias")
     if (allocated(error)) return
-    call estimation_bias(mod, res, 5, bias, info)
+    call estimation_bias(model, res, 5, bias, info)
     call check(error, info, SS_ERR_DIM, "antithetic draws need an even N")
     if (allocated(error)) return
 
     call random_seed(size=nseed)
     seed = [(97 + 13 * k, k=1, nseed)]
     call random_seed(put=seed)
-    call estimation_bias(mod, res, 500, bias, info, biasV, failed=failed)
+    call estimation_bias(model, res, 500, bias, info, biasV, failed=failed)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
     call random_seed(put=seed)
-    call estimation_bias(mod, res, 500, bias2, info)
+    call estimation_bias(model, res, 500, bias2, info)
     call check_rel(error, pack(bias2, .true.), pack(bias, .true.), 0.0_dp, &
                    "reproducible")
     if (allocated(error)) return
@@ -533,7 +534,7 @@ contains
     ! Simulation noise, from a second seed, must be small next to the bias.
     seed = [(31 + 7 * k, k=1, nseed)]
     call random_seed(put=seed)
-    call estimation_bias(mod, res, 500, bias2, info)
+    call estimation_bias(model, res, 500, bias2, info)
     rel = abs(bias(1, :)) / sqrt(sres%V(1, 1, :))
     write (buf, '(3f9.5)') maxval(rel), sum(rel) / size(rel), &
       maxval(abs(bias2(1, :) - bias(1, :)) / sqrt(sres%V(1, 1, :)))
@@ -558,34 +559,34 @@ contains
   subroutine test_ar2_loglike(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
-    type(ar2_t) :: mod
+    type(ar2_t) :: model
     type(filter_result_t) :: fres
     integer :: info
 
     fx = load_fixture("test/fixtures/ar2.txt")
-    mod = ar2(fx%get2('y'))
-    call mod%filter(fx%get1('params'), fres, info)
+    model = ar2(fx%get2('y'))
+    call model%filter(fx%get1('params'), fres, info)
     call check(error, info, SS_OK, "filter info")
     if (allocated(error)) return
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-10_dp, "llf_obs")
     if (allocated(error)) return
-    call check_rel(error, [mod%loglike(fx%get1('params'), info)], fx%get1('llf'), &
+    call check_rel(error, [model%loglike(fx%get1('params'), info)], fx%get1('llf'), &
                    1.0e-12_dp, "llf")
   end subroutine test_ar2_loglike
 
   subroutine test_ar2_fit(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
-    type(ar2_t) :: mod
+    type(ar2_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     integer :: info
 
     fx = load_fixture("test/fixtures/ar2.txt")
-    mod = ar2(fx%get2('y'))
+    model = ar2(fx%get2('y'))
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
+    call fit(model, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
     call check(error, res%analytic_gradient, &

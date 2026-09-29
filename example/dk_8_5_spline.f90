@@ -27,7 +27,7 @@ program dk_8_5_spline
   character(len=32), allocatable :: names(:)
   real(dp), allocatable :: data(:, :), times(:), y(:, :), g(:)
   type(component_holder_t) :: comps(2)
-  type(structural_model_t) :: mod
+  type(structural_model_t) :: model
   type(fit_result_t) :: res
   type(fit_options_t) :: opts
   type(filter_result_t) :: fres
@@ -43,18 +43,18 @@ program dk_8_5_spline
 
   allocate (irregular_t :: comps(1)%c)
   comps(2)%c = continuous_trend_t(times=times)
-  mod = structural_model(y, comps, info)
+  model = structural_model(y, comps, info)
   if (info /= SS_OK) error stop "model"
   opts%factr = 10.0_dp
   opts%pgtol = 1.0e-9_dp
-  call fit(mod, res, options=opts, info=info)
+  call fit(model, res, options=opts, info=info)
   if (info /= SS_OK) error stop "fit"
 
   ! psi = log sigma2_zeta - log sigma2_eps, its variance by the delta method
   psi = log(res%params(2) / res%params(1))
   g = [-1.0_dp / res%params(1), 1.0_dp / res%params(2)]
   se = sqrt(dot_product(g, matmul(res%cov_params, g)))
-  aic = (-2 * res%llf + 2 * (mod%rep%k_diffuse() + mod%k_params)) / n
+  aic = (-2 * res%llf + 2 * (model%rep%k_diffuse() + model%k_params)) / n
   print '(a, 2es12.4)', "sigma2_eps, sigma2_zeta: ", res%params
   print '(a, f8.3, a, f6.3, a)', "psi = log lambda: ", psi, "  (se ", se, ")"
   print '(a, f8.4, a, f6.3, a, f6.3)', "lambda: ", exp(psi), "  95% interval ", &
@@ -62,7 +62,7 @@ program dk_8_5_spline
   print '(a, f8.3)', "AIC: ", aic
 
   ! The spline (the smoothed level) with 95% intervals, every 10th point
-  call mod%smooth(res%params, fres, sres, info)
+  call model%smooth(res%params, fres, sres, info)
   print '(/, a8, 4a10)', "time", "accel", "spline", "lower", "upper"
   do t = 1, n, 10
     print '(f8.1, 4f10.2)', times(t), y(1, t), sres%alphahat(1, t), &

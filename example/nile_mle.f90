@@ -23,15 +23,15 @@ module nile_local_level_model
 
 contains
 
-  function local_level(y) result(mod)
+  function local_level(y) result(model)
     real(dp), intent(in) :: y(:, :)
-    type(local_level_t) :: mod
+    type(local_level_t) :: model
 
-    mod%k_params = 2
-    mod%rep = ssm_rep(y, m=1, r=1)
-    mod%rep%Z = 1.0_dp
-    mod%rep%T = 1.0_dp
-    call mod%rep%initialize_diffuse()
+    model%k_params = 2
+    model%rep = ssm_rep(y, m=1, r=1)
+    model%rep%Z = 1.0_dp
+    model%rep%T = 1.0_dp
+    call model%rep%initialize_diffuse()
   end function local_level
 
   subroutine update(self, params)
@@ -82,7 +82,7 @@ program nile_mle
   use nile_local_level_model, only: local_level_t, local_level
   implicit none
 
-  type(local_level_t) :: mod
+  type(local_level_t) :: model
   type(fit_result_t) :: res
   type(fit_options_t) :: opts
   character(len=32), allocatable :: names(:)
@@ -90,21 +90,21 @@ program nile_mle
   integer :: info, i
 
   y = read_nile("data/nile.csv")
-  mod = local_level(y)
+  model = local_level(y)
 
   opts%factr = 10.0_dp       ! tight convergence; the likelihood is flat
   opts%pgtol = 1.0e-9_dp
-  call fit(mod, res, options=opts, info=info)
+  call fit(model, res, options=opts, info=info)
   if (info /= SS_OK) error stop "fit failed"
 
-  names = mod%param_names()
+  names = model%param_names()
   print '(a)', trim(res%message)
   print '(a, i0, a, i0)', "iterations: ", res%niter, "  likelihood evaluations: ", &
       res%nfev
   print '(a, f14.6)', "log likelihood: ", res%llf
   print '(a, f10.4, a, f10.4)', "AIC: ", res%aic, "  BIC: ", res%bic
   print '(a20, 2a14)', "", "estimate", "std err"
-  do i = 1, mod%k_params
+  do i = 1, model%k_params
     print '(a20, 2f14.4)', trim(names(i)), res%params(i), res%bse(i)
   end do
 

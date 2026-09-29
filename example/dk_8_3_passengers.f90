@@ -68,7 +68,7 @@ contains
     integer, intent(in) :: n
     logical, intent(in) :: rank_one, law(2)
     type(component_holder_t), allocatable :: comps(:)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     type(filter_result_t) :: fres
@@ -103,23 +103,23 @@ contains
                                 series=i, at_observations=rank_one)
     end do
     if (rank_one) then
-      mod = structural_model(y(:, 1:n), comps, info, &
+      model = structural_model(y(:, 1:n), comps, info, &
                              loading=reshape([1.0_dp, 1.0_dp], [2, 1]), &
                              loading_free=reshape([.false., .true.], [2, 1]))
     else
-      mod = structural_model(y(:, 1:n), comps, info)
+      model = structural_model(y(:, 1:n), comps, info)
     end if
     if (info /= SS_OK) error stop "model"
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-8_dp
     opts%compute_cov = .false.
-    call fit(mod, res, options=opts, info=info)
+    call fit(model, res, options=opts, info=info)
     if (info /= SS_OK) error stop "fit"
     llf = res%llf
 
     Seps = full_cov(res%params(1:3))
     if (rank_one) then
-      lam = res%params(mod%k_params)
+      lam = res%params(model%k_params)
       Seta = res%params(4) * reshape([1.0_dp, lam, lam, lam**2], [2, 2])
     else
       Seta = full_cov(res%params(4:6))
@@ -133,11 +133,12 @@ contains
     print '(2x, a, f12.3)', "log likelihood ", llf
 
     if (.not. any(law)) return
-    call mod%smooth(res%params, fres, sres, info)
+    call model%smooth(res%params, fres, sres, info)
     print '(2x, a8, 3a12)', "law", "coef", "rmse", "t-value"
     do i = 1, 2
       if (.not. law(i)) cycle
-      j = mod%s0(ireg(i)) + mod%comps(ireg(i))%c%m     ! the law is the last regressor
+      ! the law is the last regressor
+      j = model%s0(ireg(i)) + model%comps(ireg(i))%c%m
       print '(2x, a8, 3f12.5)', label(i), sres%alphahat(j, n), sqrt(sres%V(j, j, n)), &
         sres%alphahat(j, n) / sqrt(sres%V(j, j, n))
     end do

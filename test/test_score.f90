@@ -155,74 +155,74 @@ contains
   end function lower_cholesky
 
   !> A varmodel on a fixture's model; `spec` rows are (target, row, col).
-  function varmodel(path, spec) result(mod)
+  function varmodel(path, spec) result(model)
     character(len=*), intent(in) :: path
     integer, intent(in) :: spec(:, :)
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
     type(fixture_t) :: fx
 
     fx = load_fixture(path)
-    mod%rep = rep_from_fixture(fx)
-    mod%H0 = mod%rep%H
-    mod%k_params = size(spec, 1)
-    mod%target = spec(:, 1)
-    mod%row = spec(:, 2)
-    mod%col = spec(:, 3)
+    model%rep = rep_from_fixture(fx)
+    model%H0 = model%rep%H
+    model%k_params = size(spec, 1)
+    model%target = spec(:, 1)
+    model%row = spec(:, 2)
+    model%col = spec(:, 3)
   end function varmodel
 
   !> Current parameter values of a varmodel, read back from its matrices.
-  function current_params(mod) result(params)
-    type(varmodel_t), intent(in) :: mod
+  function current_params(model) result(params)
+    type(varmodel_t), intent(in) :: model
     real(dp), allocatable :: params(:)
     integer :: i
 
-    allocate (params(mod%k_params))
-    do i = 1, mod%k_params
-      select case (mod%target(i))
+    allocate (params(model%k_params))
+    do i = 1, model%k_params
+      select case (model%target(i))
       case (TO_H)
-        params(i) = mod%rep%H(mod%row(i), mod%col(i), 1)
+        params(i) = model%rep%H(model%row(i), model%col(i), 1)
       case (TO_Q)
-        params(i) = mod%rep%Q(mod%row(i), mod%col(i), 1)
+        params(i) = model%rep%Q(model%row(i), model%col(i), 1)
       case (SCALE_H)
         params(i) = 1.0_dp
       case (TO_T)
-        params(i) = mod%rep%T(mod%row(i), mod%col(i), 1)
+        params(i) = model%rep%T(model%row(i), model%col(i), 1)
       case (TO_R)
-        params(i) = mod%rep%R(mod%row(i), mod%col(i), 1)
+        params(i) = model%rep%R(model%row(i), model%col(i), 1)
       end select
     end do
   end function current_params
 
   !> Analytic score against central differences of the log likelihood, at
   !> the fixture's parameters moved by `shift` (so the score is not ~0).
-  subroutine check_score(error, mod, shift)
+  subroutine check_score(error, model, shift)
     type(error_type), allocatable, intent(out) :: error
-    class(ssm_model_t), intent(inout) :: mod
+    class(ssm_model_t), intent(inout) :: model
     real(dp), intent(in) :: shift(:)
     real(dp), allocatable :: p0(:), p(:), score(:), fd(:)
     real(dp) :: llf, h, err
     integer :: info, i
     character(len=64) :: buf
 
-    select type (mod)
+    select type (model)
     type is (varmodel_t)
-      p0 = current_params(mod) * shift
+      p0 = current_params(model) * shift
     class default
       p0 = shift
     end select
     allocate (score(size(p0)), fd(size(p0)))
-    call analytic_score(mod, p0, score, llf, info)
+    call analytic_score(model, p0, score, llf, info)
     call check(error, info, SS_OK, "analytic_score info")
     if (allocated(error)) return
-    call check(error, abs(llf - mod%loglike(p0, info)) <= 1.0e-8_dp * abs(llf), "llf")
+    call check(error, abs(llf - model%loglike(p0, info)) <= 1.0e-8_dp * abs(llf), "llf")
     if (allocated(error)) return
     do i = 1, size(p0)
       h = 1.0e-4_dp * max(abs(p0(i)), 1.0e-2_dp)
       p = p0
       p(i) = p0(i) + h
-      fd(i) = mod%loglike(p, info)
+      fd(i) = model%loglike(p, info)
       p(i) = p0(i) - h
-      fd(i) = (fd(i) - mod%loglike(p, info)) / (2.0_dp * h)
+      fd(i) = (fd(i) - model%loglike(p, info)) / (2.0_dp * h)
     end do
     err = maxval(abs(score - fd) / (abs(fd) + 1.0e-6_dp * maxval(abs(fd))))
     write (buf, '(es10.3)') err
@@ -232,112 +232,113 @@ contains
 
   subroutine test_nile(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/nile_llevel_exact.txt", &
+    model = varmodel("test/fixtures/nile_llevel_exact.txt", &
                    reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
-    call check_score(error, mod, [1.2_dp, 0.7_dp])
+    call check_score(error, model, [1.2_dp, 0.7_dp])
   end subroutine test_nile
 
   subroutine test_mv_diffuse(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/mv_diffuse.txt", reshape( &
+    model = varmodel("test/fixtures/mv_diffuse.txt", reshape( &
                    [TO_H, TO_H, TO_H, TO_Q, TO_Q, TO_Q, &
                     1, 2, 2, 1, 2, 2, &
                     1, 1, 2, 1, 1, 2], [6, 3]))
-    call check_score(error, mod, [1.2_dp, 0.8_dp, 1.1_dp, 0.9_dp, 1.3_dp, 1.2_dp])
+    call check_score(error, model, [1.2_dp, 0.8_dp, 1.1_dp, 0.9_dp, 1.3_dp, 1.2_dp])
   end subroutine test_mv_diffuse
 
   subroutine test_mv_missing(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/mv_missing.txt", reshape( &
+    model = varmodel("test/fixtures/mv_missing.txt", reshape( &
                    [TO_H, TO_H, TO_H, TO_H, TO_Q, TO_Q, &
                     1, 2, 3, 3, 1, 2, &
                     1, 2, 3, 1, 1, 2], [6, 3]))
-    call check_score(error, mod, [1.2_dp, 0.8_dp, 1.1_dp, 0.7_dp, 1.3_dp, 0.9_dp])
+    call check_score(error, model, [1.2_dp, 0.8_dp, 1.1_dp, 0.7_dp, 1.3_dp, 0.9_dp])
   end subroutine test_mv_missing
 
   subroutine test_mv_timevarying(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/mv_timevarying.txt", reshape( &
+    model = varmodel("test/fixtures/mv_timevarying.txt", reshape( &
                    [SCALE_H, TO_Q, TO_Q, TO_Q, &
                     1, 1, 2, 2, &
                     1, 1, 1, 2], [4, 3]))
-    call check_score(error, mod, [1.3_dp, 0.8_dp, 1.2_dp, 1.1_dp])
+    call check_score(error, model, [1.3_dp, 0.8_dp, 1.2_dp, 1.1_dp])
   end subroutine test_mv_timevarying
 
   subroutine test_seasonal(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/uc_trend_seasonal_exact.txt", reshape( &
+    model = varmodel("test/fixtures/uc_trend_seasonal_exact.txt", reshape( &
                    [TO_H, TO_Q, TO_Q, TO_Q, &
                     1, 1, 2, 3, &
                     1, 1, 2, 3], [4, 3]))
-    call check_score(error, mod, [1.2_dp, 0.8_dp, 1.5_dp, 0.7_dp])
+    call check_score(error, model, [1.2_dp, 0.8_dp, 1.5_dp, 0.7_dp])
   end subroutine test_seasonal
 
   !> Diffuse level with a stationary AR(1): the AR variance moves P_star.
   subroutine test_mixed(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/uc_level_ar1_mixed.txt", reshape( &
+    model = varmodel("test/fixtures/uc_level_ar1_mixed.txt", reshape( &
                    [TO_H, TO_Q, TO_Q, &
                     1, 1, 2, &
                     1, 1, 2], [3, 3]))
-    call check_score(error, mod, [1.2_dp, 0.8_dp, 1.4_dp])
+    call check_score(error, model, [1.2_dp, 0.8_dp, 1.4_dp])
   end subroutine test_mixed
 
   !> DK (7.16): a parameter in R, here the loading of the level shock on the
   !> slope of a local linear trend (exact diffuse).
   subroutine test_param_in_R(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/nile_lltrend_exact.txt", reshape( &
+    model = varmodel("test/fixtures/nile_lltrend_exact.txt", reshape( &
                    [TO_H, TO_Q, TO_Q, TO_R, &
                     1, 1, 2, 2, &
                     1, 1, 2, 1], [4, 3]))
-    mod%rep%R(2, 1, 1) = 0.3_dp
-    call check_score(error, mod, [1.2_dp, 0.8_dp, 1.5_dp, 0.7_dp])
+    model%rep%R(2, 1, 1) = 0.3_dp
+    call check_score(error, model, [1.2_dp, 0.8_dp, 1.5_dp, 0.7_dp])
   end subroutine test_param_in_R
 
   !> Nile local level with sigma2_eps concentrated out: H = 1, param q = Q.
   subroutine test_concentrated(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/nile_llevel_exact.txt", reshape([TO_Q, 1, 1], [1, 3]))
-    mod%rep%H = 1.0_dp
-    mod%rep%Q = 0.2_dp
-    mod%concentrate_scale = .true.
-    call check_score(error, mod, [0.5_dp])
+    model = varmodel("test/fixtures/nile_llevel_exact.txt", &
+                     reshape([TO_Q, 1, 1], [1, 3]))
+    model%rep%H = 1.0_dp
+    model%rep%Q = 0.2_dp
+    model%concentrate_scale = .true.
+    call check_score(error, model, [0.5_dp])
   end subroutine test_concentrated
 
   !> A parameter moving T (AR coefficient) and a burn-in are outside the formula.
   subroutine test_unsupported(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
     real(dp) :: score(2), llf
     integer :: info
 
-    mod = varmodel("test/fixtures/nile_llevel_exact.txt", &
+    model = varmodel("test/fixtures/nile_llevel_exact.txt", &
                    reshape([TO_H, TO_Q, 1, 1, 1, 1], [2, 3]))
-    mod%rep%loglikelihood_burn = 1
-    call analytic_score(mod, [15000.0_dp, 1500.0_dp], score, llf, info)
+    model%rep%loglikelihood_burn = 1
+    call analytic_score(model, [15000.0_dp, 1500.0_dp], score, llf, info)
     call check(error, info, SS_ERR_UNSUPPORTED, "burn-in")
     if (allocated(error)) return
 
-    mod%rep%loglikelihood_burn = 0
-    mod%target(2) = TO_T
-    call analytic_score(mod, [15000.0_dp, 0.9_dp], score, llf, info)
+    model%rep%loglikelihood_burn = 0
+    model%target(2) = TO_T
+    call analytic_score(model, [15000.0_dp, 0.9_dp], score, llf, info)
     call check(error, info, SS_ERR_UNSUPPORTED, "parameter in T")
   end subroutine test_unsupported
   !> Nile local level, exact diffuse, EM from var(y)/2 for both variances:
@@ -378,9 +379,9 @@ contains
   !> likelihood (analytic score), then one EM step must leave the estimates
   !> essentially unchanged. (EM itself converges too slowly on these flat
   !> likelihoods to reach the MLE in a test.)
-  subroutine check_em_fixed_point(error, mod, diagonal)
+  subroutine check_em_fixed_point(error, model, diagonal)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t), intent(inout) :: mod
+    type(varmodel_t), intent(inout) :: model
     logical, intent(in) :: diagonal
     type(varmodel_t) :: em
     type(fit_result_t) :: res
@@ -390,7 +391,7 @@ contains
     integer :: info, niter
     character(len=64) :: buf
 
-    em = mod
+    em = model
     call em_variances(em%rep, 200, 0.0_dp, llf, niter, info, diagonal_H=diagonal, &
                       diagonal_Q=diagonal, llf_path=path)
     call check(error, info, SS_OK, "em info")
@@ -402,15 +403,15 @@ contains
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-10_dp
     opts%gradient = GRADIENT_ANALYTIC
-    mod%cholesky = .true.
-    call fit(mod, res, start_params=current_params(mod), options=opts, info=info)
+    model%cholesky = .true.
+    call fit(model, res, start_params=current_params(model), options=opts, info=info)
     call check(error, res%converged, "MLE: "//trim(res%message))
     if (allocated(error)) return
-    p0 = current_params(mod)
-    call em_step(mod%rep, llf, info, diagonal_H=diagonal, diagonal_Q=diagonal)
+    p0 = current_params(model)
+    call em_step(model%rep, llf, info, diagonal_H=diagonal, diagonal_Q=diagonal)
     call check(error, info, SS_OK, "em_step info")
     if (allocated(error)) return
-    change = maxval(abs(current_params(mod) - p0) / max(abs(p0), 1.0e-8_dp))
+    change = maxval(abs(current_params(model) - p0) / max(abs(p0), 1.0e-8_dp))
     write (buf, '(es10.2)') change
     call check(error, change < 1.0e-4_dp, &
                "EM step from the MLE moved it by "//trim(buf))
@@ -418,24 +419,24 @@ contains
 
   subroutine test_em_mv_missing(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/mv_missing.txt", reshape( &
+    model = varmodel("test/fixtures/mv_missing.txt", reshape( &
                    [TO_H, TO_H, TO_H, TO_H, TO_H, TO_H, TO_Q, TO_Q, TO_Q, &
                     1, 2, 3, 2, 3, 3, 1, 2, 2, &
                     1, 1, 1, 2, 2, 3, 1, 1, 2], [9, 3]))
-    call check_em_fixed_point(error, mod, .false.)
+    call check_em_fixed_point(error, model, .false.)
   end subroutine test_em_mv_missing
 
   subroutine test_em_seasonal(error)
     type(error_type), allocatable, intent(out) :: error
-    type(varmodel_t) :: mod
+    type(varmodel_t) :: model
 
-    mod = varmodel("test/fixtures/uc_trend_seasonal_exact.txt", reshape( &
+    model = varmodel("test/fixtures/uc_trend_seasonal_exact.txt", reshape( &
                    [TO_H, TO_Q, TO_Q, TO_Q, &
                     1, 1, 2, 3, &
                     1, 1, 2, 3], [4, 3]))
-    call check_em_fixed_point(error, mod, .true.)
+    call check_em_fixed_point(error, model, .true.)
   end subroutine test_em_seasonal
 
   subroutine test_em_stationary(error)
@@ -452,8 +453,8 @@ contains
   end subroutine test_em_stationary
 
   !> Irregular + level + damped cycle on simulated data.
-  function cycle_model() result(mod)
-    type(structural_model_t) :: mod
+  function cycle_model() result(model)
+    type(structural_model_t) :: model
     type(component_holder_t) :: comps(3)
     real(dp) :: y(1, 200), e(200), u(200)
     integer :: t, info
@@ -468,24 +469,24 @@ contains
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     comps(3)%c = cycle_t(period_min=5.0_dp, period_max=50.0_dp)
-    mod = structural_model(y, comps, info)
+    model = structural_model(y, comps, info)
   end function cycle_model
 
   !> With `analytic`, variance parameters are scored and the cycle's
   !> frequency and damping (in T) are marked as not covered.
   subroutine test_hybrid_mask(error)
     type(error_type), allocatable, intent(out) :: error
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     real(dp) :: p0(5), score(5), llf, h, fd, pp(5), pm(5)
     logical :: analytic(5)
     integer :: info, i
 
-    mod = cycle_model()
+    model = cycle_model()
     p0 = [1.0_dp, 0.04_dp, 0.1_dp, 2 * acos(-1.0_dp) / 20, 0.9_dp]
-    call analytic_score(mod, p0, score, llf, info)
+    call analytic_score(model, p0, score, llf, info)
     call check(error, info, SS_ERR_UNSUPPORTED, "without the mask")
     if (allocated(error)) return
-    call analytic_score(mod, p0, score, llf, info, analytic)
+    call analytic_score(model, p0, score, llf, info, analytic)
     call check(error, info, SS_OK, "with the mask")
     if (allocated(error)) return
     call check(error, all(analytic .eqv. [.true., .true., .true., .false., .false.]), &
@@ -495,7 +496,7 @@ contains
       h = 1.0e-5_dp * p0(i)
       pp = p0; pp(i) = p0(i) + h
       pm = p0; pm(i) = p0(i) - h
-      fd = (mod%loglike(pp, info) - mod%loglike(pm, info)) / (2 * h)
+      fd = (model%loglike(pp, info) - model%loglike(pm, info)) / (2 * h)
       call check(error, abs(score(i) - fd) <= 1.0e-5_dp * max(1.0_dp, abs(fd)), &
                  "score vs FD")
       if (allocated(error)) return

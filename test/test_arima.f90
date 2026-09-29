@@ -41,32 +41,32 @@ contains
   end subroutine check_rel
 
   !> ARIMA model for a fixture, orders from the fixture.
-  function arima_model(fx, info) result(mod)
+  function arima_model(fx, info) result(model)
     type(fixture_t), intent(in) :: fx
     integer, intent(out) :: info
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(component_holder_t) :: comps(1)
     integer, allocatable :: o(:)
 
     o = nint(fx%get1('order'))
     comps(1)%c = arima_t(ar=o(1), d=o(2), ma=o(3), sar=o(4), sd=o(5), sma=o(6), s=o(7))
-    mod = structural_model(fx%get2('y'), comps, info)
+    model = structural_model(fx%get2('y'), comps, info)
   end function arima_model
 
   subroutine check_arima(error, path)
     type(error_type), allocatable, intent(out) :: error
     character(len=*), intent(in) :: path
     type(fixture_t) :: fx
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     integer :: info
 
     fx = load_fixture(path)
-    mod = arima_model(fx, info)
+    model = arima_model(fx, info)
     call check(error, info, SS_OK, "model info")
     if (allocated(error)) return
-    call mod%smooth(fx%get1('params'), fres, sres, info)
+    call model%smooth(fx%get1('params'), fres, sres, info)
     call check(error, info, SS_OK, "smooth info")
     if (allocated(error)) return
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-9_dp, "llf_obs")
@@ -104,7 +104,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     type(smoother_result_t) :: sres
     real(dp), allocatable :: z(:)
@@ -114,29 +114,29 @@ contains
     z = fx%get1('z')
     comps(1)%c = regression_t(x=reshape([spread(1.0_dp, 1, size(z)), z], [size(z), 2]))
     comps(2)%c = arima_t(ar=1, ma=1)
-    mod = structural_model(fx%get2('y'), comps, info)
-    call mod%smooth(fx%get1('params'), fres, sres, info)
+    model = structural_model(fx%get2('y'), comps, info)
+    call model%smooth(fx%get1('params'), fres, sres, info)
     call check(error, info, SS_OK, "smooth info")
     if (allocated(error)) return
     call check_rel(error, fres%llf_obs, fx%get1('llf_obs'), 1.0e-9_dp, "llf_obs")
     if (allocated(error)) return
-    call check_rel(error, sres%alphahat(1:2, mod%rep%nobs), fx%get1('beta'), &
+    call check_rel(error, sres%alphahat(1:2, model%rep%nobs), fx%get1('beta'), &
                    1.0e-9_dp, "beta")
   end subroutine test_regression
 
   subroutine test_fit(error)
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(fit_result_t) :: res
     type(fit_options_t) :: opts
     integer :: info
 
     fx = load_fixture("test/fixtures/arima_211.txt")
-    mod = arima_model(fx, info)
+    model = arima_model(fx, info)
     opts%factr = 10.0_dp
     opts%pgtol = 1.0e-9_dp
-    call fit(mod, res, options=opts, info=info)
+    call fit(model, res, options=opts, info=info)
     call check(error, info, SS_OK, "fit info")
     if (allocated(error)) return
     call check(error, abs(res%llf - sum(fx%get1('llf_tight'))) < 1.0e-7_dp, "llf")
@@ -150,7 +150,7 @@ contains
   subroutine test_dk_561(error)
     type(error_type), allocatable, intent(out) :: error
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     real(dp) :: y(1, 10), s2, qx, qz
     integer :: info, t
@@ -159,8 +159,8 @@ contains
     s2 = 2.0_dp; qx = 0.3_dp; qz = 0.1_dp
     allocate (irregular_t :: comps(1)%c)
     allocate (trend_t :: comps(2)%c)
-    mod = structural_model(y, comps, info)
-    call mod%filter([s2, qx * s2, qz * s2], fres, info)
+    model = structural_model(y, comps, info)
+    call model%filter([s2, qx * s2, qz * s2], fres, info)
     call check(error, fres%nobs_diffuse, 2, "d = 2")
     if (allocated(error)) return
     call check_rel(error, fres%a(:, 3), [2 * y(1, 2) - y(1, 1), y(1, 2) - y(1, 1)], &
@@ -177,7 +177,7 @@ contains
   subroutine test_dk_562(error)
     type(error_type), allocatable, intent(out) :: error
     type(component_holder_t) :: comps(1)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     real(dp) :: y(1, 5), phi, theta
     integer :: info
@@ -185,8 +185,8 @@ contains
     y = 1.0_dp
     phi = 0.6_dp; theta = 0.3_dp
     comps(1)%c = arima_t(ar=1, ma=1)
-    mod = structural_model(y, comps, info)
-    call mod%filter([phi, theta, 1.0_dp], fres, info)
+    model = structural_model(y, comps, info)
+    call model%filter([phi, theta, 1.0_dp], fres, info)
     call check_rel(error, pack(fres%P(:, :, 1), .true.), &
                    [(1 + theta**2 + 2 * phi * theta) / (1 - phi**2), theta, theta, &
                     theta**2], 1.0e-12_dp, "Q0")
@@ -198,7 +198,7 @@ contains
   subroutine test_dk_564(error)
     type(error_type), allocatable, intent(out) :: error
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     real(dp) :: y(1, 6), phi, s2
     integer :: info, t
@@ -207,8 +207,8 @@ contains
     phi = 0.7_dp; s2 = 1.5_dp
     comps(1)%c = regression_t(x=reshape([spread(1.0_dp, 1, 6)], [6, 1]))
     comps(2)%c = arima_t(ar=1)
-    mod = structural_model(y, comps, info)
-    call mod%filter([phi, s2], fres, info)
+    model = structural_model(y, comps, info)
+    call model%filter([phi, s2], fres, info)
     call check(error, fres%nobs_diffuse, 1, "d = 1")
     if (allocated(error)) return
     call check_rel(error, fres%a(:, 2), [y(1, 1), 0.0_dp], 1.0e-12_dp, "a_2")
@@ -226,7 +226,7 @@ contains
     type(error_type), allocatable, intent(out) :: error
     type(fixture_t) :: fx
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     real(dp) :: lambda, yhat
     integer :: info, t
@@ -234,14 +234,14 @@ contains
     fx = load_fixture("test/fixtures/nile_llevel_known.txt")
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
-    mod = structural_model(fx%get2('y'), comps, info)
-    call mod%filter([15099.0_dp, 1469.1_dp], fres, info)
-    lambda = 1.0_dp - fres%K(1, 1, mod%rep%nobs)
+    model = structural_model(fx%get2('y'), comps, info)
+    call model%filter([15099.0_dp, 1469.1_dp], fres, info)
+    lambda = 1.0_dp - fres%K(1, 1, model%rep%nobs)
     yhat = fres%a(1, 40)
-    do t = 40, mod%rep%nobs
-      yhat = (1.0_dp - lambda) * mod%rep%y(1, t) + lambda * yhat
+    do t = 40, model%rep%nobs
+      yhat = (1.0_dp - lambda) * model%rep%y(1, t) + lambda * yhat
     end do
-    call check_rel(error, [yhat], [fres%a(1, mod%rep%nobs + 1)], 1.0e-9_dp, &
+    call check_rel(error, [yhat], [fres%a(1, model%rep%nobs + 1)], 1.0e-9_dp, &
                    "EWMA forecast = steady-state Kalman filter")
   end subroutine test_ewma
 end module test_arima

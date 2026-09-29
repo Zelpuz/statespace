@@ -63,20 +63,20 @@ contains
 
   !> A mapped model with k parameters over `rep` (copied), with start values
   !> 0.1 until set.
-  function mapped_model(rep, k) result(mod)
+  function mapped_model(rep, k) result(model)
     use statespace_rep, only: ssm_rep_t
     type(ssm_rep_t), intent(in) :: rep
     integer, intent(in) :: k
-    type(mapped_model_t) :: mod
+    type(mapped_model_t) :: model
     integer :: i
 
-    mod%rep = rep
-    mod%k_params = k
-    allocate (mod%entries(0), mod%blocks(0), mod%groups(0))
-    allocate (mod%start(k), source=0.1_dp)
-    allocate (mod%names(k))
+    model%rep = rep
+    model%k_params = k
+    allocate (model%entries(0), model%blocks(0), model%groups(0))
+    allocate (model%start(k), source=0.1_dp)
+    allocate (model%names(k))
     do i = 1, k
-      write (mod%names(i), '("param", i0)') i
+      write (model%names(i), '("param", i0)') i
     end do
   end function mapped_model
 

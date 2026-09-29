@@ -119,15 +119,15 @@ contains
   subroutine run_bsm(n)
     integer, intent(in) :: n
     type(component_holder_t) :: comps(3)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     integer :: info
 
     allocate (irregular_t :: comps(1)%c)
     allocate (level_t :: comps(2)%c)
     comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG)
-    mod = structural_model(rw_noise(n), comps, info)
-    call mod%update([1.0_dp, 0.1_dp, 0.01_dp])
-    call time_rep("bsm", mod%rep, nreps(n))
+    model = structural_model(rw_noise(n), comps, info)
+    call model%update([1.0_dp, 0.1_dp, 0.01_dp])
+    call time_rep("bsm", model%rep, nreps(n))
   end subroutine run_bsm
 
   subroutine run_mv(n)
@@ -166,7 +166,7 @@ contains
   subroutine run_arma(n)
     integer, intent(in) :: n
     type(component_holder_t) :: comps(1)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     real(dp), allocatable :: e(:)
     real(dp) :: y(1, n)
     integer :: info
@@ -175,16 +175,16 @@ contains
     call draw_standard_normal(e)
     y(1, :) = e
     comps(1)%c = arima_t(ar=2, ma=1)
-    mod = structural_model(y, comps, info)
-    call mod%update([0.5_dp, 0.2_dp, 0.3_dp, 1.0_dp])
-    call time_rep("arma", mod%rep, nreps(n))
+    model = structural_model(y, comps, info)
+    call model%update([0.5_dp, 0.2_dp, 0.3_dp, 1.0_dp])
+    call time_rep("arma", model%rep, nreps(n))
   end subroutine run_arma
 
   !> nseries local level fits (exact diffuse), n observations each.
   subroutine run_many(nseries, n)
     integer, intent(in) :: nseries, n
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(fit_result_t) :: res
     real(dp) :: t0, y(1, n, nseries)
     integer :: i, info, nfail
@@ -197,8 +197,8 @@ contains
     nfail = 0
     t0 = now()
     do i = 1, nseries
-      mod = structural_model(y(:, :, i), comps, info)
-      call fit(mod, res, info=info)
+      model = structural_model(y(:, :, i), comps, info)
+      call fit(model, res, info=info)
       if (info /= SS_OK) nfail = nfail + 1
     end do
     print '(/, a, i0, a, i0, a, f10.1, a, i0, a)', "fit ", nseries, &

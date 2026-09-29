@@ -101,13 +101,13 @@ module statespace_components
 contains
 
   !> Assemble the components into a model for data y (p, n).
-  function structural_model(y, comps, info, loading, loading_free) result(mod)
+  function structural_model(y, comps, info, loading, loading_free) result(model)
     real(dp), intent(in) :: y(:, :)
     type(component_holder_t), intent(in) :: comps(:)
     integer, intent(out) :: info
     real(dp), intent(in), optional :: loading(:, :)       !< (p, p_sig)
     logical, intent(in), optional :: loading_free(:, :)   !< (p, p_sig)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     real(dp), allocatable :: ysig(:, :)
     integer :: i, j, m, r, k, n, nz, nh, nt, nr, nq, p, psig
     integer, allocatable :: blocks(:, :)
@@ -117,28 +117,28 @@ contains
     info = SS_ERR_DIM
     if (present(loading)) then
       if (size(loading, 1) /= p) return
-      mod%loading = loading
+      model%loading = loading
     else
-      mod%loading = identity(p)
+      model%loading = identity(p)
     end if
-    psig = size(mod%loading, 2)
-    allocate (mod%loading_free(p, psig), source=.false.)
-    if (present(loading_free)) mod%loading_free = loading_free
+    psig = size(model%loading, 2)
+    allocate (model%loading_free(p, psig), source=.false.)
+    if (present(loading_free)) model%loading_free = loading_free
     ! Signals get the leading observed series for start values.
     allocate (ysig(psig, n), source=0.0_dp)
     ysig(1:min(p, psig), :) = y(1:min(p, psig), :)
-    mod%comps = comps
-    allocate (mod%s0(size(comps)), mod%e0(size(comps)), mod%k0(size(comps)))
+    model%comps = comps
+    allocate (model%s0(size(comps)), model%e0(size(comps)), model%k0(size(comps)))
     m = 0; r = 0; k = 0
     nz = 1; nh = 1; nt = 1; nr = 1; nq = 1
     do i = 1, size(comps)
-      associate (c => mod%comps(i)%c)
+      associate (c => model%comps(i)%c)
         if (c%observation_level()) then
           call c%setup(y)
         else
           call c%setup(ysig)
         end if
-        mod%s0(i) = m; mod%e0(i) = r; mod%k0(i) = k
+        model%s0(i) = m; model%e0(i) = r; model%k0(i) = k
         m = m + c%m; r = r + c%r; k = k + c%k
         if (c%tv_Z) nz = n
         if (c%tv_H) nh = n
@@ -148,27 +148,27 @@ contains
       end associate
     end do
     if (m == 0) return
-    mod%k_comp = k
-    mod%k_params = k + count(mod%loading_free)
-    allocate (mod%Zsig(psig, m, nz), source=0.0_dp)
-    mod%rep = ssm_rep(y, m, max(r, 1))
-    mod%rep%R = 0.0_dp
-    if (nz > 1) mod%rep%Z = spread(mod%rep%Z(:, :, 1), 3, nz)
-    if (nh > 1) mod%rep%H = spread(mod%rep%H(:, :, 1), 3, nh)
-    if (nt > 1) mod%rep%T = spread(mod%rep%T(:, :, 1), 3, nt)
-    if (nr > 1) mod%rep%R = spread(mod%rep%R(:, :, 1), 3, nr)
-    if (nq > 1) mod%rep%Q = spread(mod%rep%Q(:, :, 1), 3, nq)
+    model%k_comp = k
+    model%k_params = k + count(model%loading_free)
+    allocate (model%Zsig(psig, m, nz), source=0.0_dp)
+    model%rep = ssm_rep(y, m, max(r, 1))
+    model%rep%R = 0.0_dp
+    if (nz > 1) model%rep%Z = spread(model%rep%Z(:, :, 1), 3, nz)
+    if (nh > 1) model%rep%H = spread(model%rep%H(:, :, 1), 3, nh)
+    if (nt > 1) model%rep%T = spread(model%rep%T(:, :, 1), 3, nt)
+    if (nr > 1) model%rep%R = spread(model%rep%R(:, :, 1), 3, nr)
+    if (nq > 1) model%rep%Q = spread(model%rep%Q(:, :, 1), 3, nq)
     do i = 1, size(comps)
-      associate (c => mod%comps(i)%c)
+      associate (c => model%comps(i)%c)
         if (c%m == 0) cycle
         blocks = c%init_blocks()
         do j = 1, size(blocks, 1)
-          call mod%rep%initialize_block(mod%s0(i) + blocks(j, 1), &
-                                        mod%s0(i) + blocks(j, 2), blocks(j, 3))
+          call model%rep%initialize_block(model%s0(i) + blocks(j, 1), &
+                                        model%s0(i) + blocks(j, 2), blocks(j, 3))
         end do
       end associate
     end do
-    call mod%update(mod%start_params())
+    call model%update(model%start_params())
     info = SS_OK
   end function structural_model
 

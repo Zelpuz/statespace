@@ -442,15 +442,15 @@ contains
   subroutine test_steady_arma(error)
     type(error_type), allocatable, intent(out) :: error
     type(component_holder_t) :: comps(1)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     real(dp) :: y(1, 5), P(2, 2), F(1, 1)
     integer :: info
 
     y = 0.0_dp
     comps(1)%c = arima_t(ar=1, ma=1)
-    mod = structural_model(y, comps, info)
-    call mod%update([0.6_dp, 0.3_dp, 2.0_dp])
-    call steady_state(mod%rep, P, F, info)
+    model = structural_model(y, comps, info)
+    call model%update([0.6_dp, 0.3_dp, 2.0_dp])
+    call steady_state(model%rep, P, F, info)
     call check(error, info, SS_OK, "info")
     if (allocated(error)) return
     call check_rel(error, [F(1, 1)], [2.0_dp], 1.0e-10_dp, "F = sigma2")

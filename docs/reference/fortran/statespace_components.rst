@@ -35,16 +35,16 @@ same with regression effects.
 .. code-block:: fortran
 
    type(component_holder_t) :: comps(4)
-   type(structural_model_t) :: mod
+   type(structural_model_t) :: model
 
    allocate (irregular_t :: comps(1)%c)
    allocate (level_t :: comps(2)%c)
    comps(3)%c = seasonal_t(period=12, form=SEASONAL_TRIG)
-   mod = structural_model(y, comps(1:3), info)
-   call fit(mod, res, info=info)
+   model = structural_model(y, comps(1:3), info)
+   call fit(model, res, info=info)
 
    comps(4)%c = regression_t(x=x)             ! petrol price and the seat belt law
-   mod = structural_model(y, comps, info)
+   model = structural_model(y, comps, info)
 
 ``component_t``
 ---------------
@@ -116,13 +116,13 @@ ordered component by component, then the free loadings.
 
 .. code-block:: fortran
 
-   function structural_model(y, comps, info, loading, loading_free) result(mod)
+   function structural_model(y, comps, info, loading, loading_free) result(model)
      real(dp), intent(in) :: y(:, :)                        ! (p, n)
      type(component_holder_t), intent(in) :: comps(:)
      integer, intent(out) :: info
      real(dp), intent(in), optional :: loading(:, :)        ! (p, p_sig)
      logical, intent(in), optional :: loading_free(:, :)
-     type(structural_model_t) :: mod
+     type(structural_model_t) :: model
 
 Assemble the components; the model starts at its start parameters.
 

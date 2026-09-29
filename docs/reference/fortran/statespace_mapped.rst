@@ -60,10 +60,10 @@ declarations.
 
 .. code-block:: fortran
 
-   function mapped_model(rep, k) result(mod)
+   function mapped_model(rep, k) result(model)
      type(ssm_rep_t), intent(in) :: rep
      integer, intent(in) :: k
-     type(mapped_model_t) :: mod
+     type(mapped_model_t) :: model
 
 A mapped model with k parameters over a copy of ``rep``; start values 0.1
 and names ``param1, ...`` until set.
@@ -75,11 +75,11 @@ The local level model:
 
 .. code-block:: fortran
 
-   type(mapped_model_t) :: mod
+   type(mapped_model_t) :: model
    rep = ssm_rep(y, m=1, r=1)
    rep%Z = 1.0_dp; rep%T = 1.0_dp
    call rep%initialize_diffuse()
-   mod = mapped_model(rep, 2)
-   call mod%add_entry(1, 3, 1, 1, 0, 1.0_dp)          ! H(1, 1) = params(1)
-   call mod%add_entry(2, 6, 1, 1, 0, 1.0_dp)          ! Q(1, 1) = params(2)
-   call mod%add_group(MAP_POSITIVE, 1, 2, 0.0_dp, 0.0_dp)
+   model = mapped_model(rep, 2)
+   call model%add_entry(1, 3, 1, 1, 0, 1.0_dp)          ! H(1, 1) = params(1)
+   call model%add_entry(2, 6, 1, 1, 0, 1.0_dp)          ! Q(1, 1) = params(2)
+   call model%add_group(MAP_POSITIVE, 1, 2, 0.0_dp, 0.0_dp)

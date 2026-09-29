@@ -1141,7 +1141,7 @@ contains
   subroutine test_steady_diffuse(error)
     type(error_type), allocatable, intent(out) :: error
     type(component_holder_t) :: comps(2)
-    type(structural_model_t) :: mod
+    type(structural_model_t) :: model
     type(filter_result_t) :: fres
     real(dp) :: y(1, 400), e(400)
     integer :: info, t
@@ -1153,10 +1153,10 @@ contains
     end do
     allocate (irregular_t :: comps(1)%c)
     allocate (trend_t :: comps(2)%c)
-    mod = structural_model(y, comps, info)
-    call mod%update([1.0_dp, 0.1_dp, 0.01_dp])
-    call kalman_filter(mod%rep, fres, info)
-    call check_steady_pair(error, mod%rep, fres%nobs_diffuse)
+    model = structural_model(y, comps, info)
+    call model%update([1.0_dp, 0.1_dp, 0.01_dp])
+    call kalman_filter(model%rep, fres, info)
+    call check_steady_pair(error, model%rep, fres%nobs_diffuse)
   end subroutine test_steady_diffuse
 
   !> Time-varying intercepts c_t and d_t do not affect P, so the shortcut
