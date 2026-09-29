@@ -1,0 +1,56 @@
+# Build the documentation and run its examples (doctests). Every push and pull
+# request checks that the docs build without warnings. Publishing to GitHub
+# Pages happens only on a release: wheels.yml calls this workflow with
+# deploy: true after the PyPI upload.
+name: docs
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call:
+    inputs:
+      deploy:
+        description: "Publish to GitHub Pages"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install gfortran and OpenBLAS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran libopenblas-dev
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install the pinned tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --group docs
+      # The Makefile builds the library first; autodoc imports ssfortran.
+      - name: Build the HTML
+        run: make -C docs html VENV="$(dirname "$(command -v python)")"
+      - name: Run the documentation's examples
+        run: make -C docs doctest VENV="$(dirname "$(command -v python)")"
+      - uses: actions/upload-pages-artifact@v5
+        if: ${{ inputs.deploy }}
+        with:
+          path: build/docs/html
+
+  deploy:
+    needs: build
+    if: ${{ inputs.deploy }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

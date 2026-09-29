@@ -2,6 +2,8 @@
 # The shared library is built first because autodoc imports ssfortran.
 ROOT := $(abspath ..)
 VENV ?= $(ROOT)/.venv/bin
+# CMake finds ninja (and Sphinx its tools) in the same environment.
+export PATH := $(VENV):$(PATH)
 OUT := $(ROOT)/build/docs
 
 .PHONY: html doctest lib clean

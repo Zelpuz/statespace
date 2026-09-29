@@ -5,6 +5,8 @@
 #   pyproject.toml).
 # - Running the workflow by hand (Actions > wheels > Run workflow) with target
 #   "testpypi" or "pypi" publishes there. Nothing publishes automatically.
+# - A PyPI release also publishes the documentation to GitHub Pages
+#   (docs.yml).
 #
 # Publishing uses PyPI trusted publishing: no tokens are stored. Each index
 # needs a trusted publisher for this repository, this workflow (wheels.yml)
@@ -90,3 +92,13 @@ jobs:
           path: dist
           merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  docs:
+    needs: pypi
+    uses: ./.github/workflows/docs.yml
+    with:
+      deploy: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

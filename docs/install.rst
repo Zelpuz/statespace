@@ -84,10 +84,15 @@ See ``data/README.md`` for their sources and terms.
 Documentation
 -------------
 
-With Sphinx, numpydoc, pydata-sphinx-theme and myst-parser installed::
+The documentation is published at https://zelpuz.github.io/statespace/
+with each release. To build it locally, with the pinned tools::
 
-   make -C docs html        # into build/docs/html
-   make -C docs doctest     # run the examples in the documentation
+   pip install --group docs   # or: uv sync --group docs
+   make -C docs html          # into build/docs/html
+   make -C docs doctest       # run the examples in the documentation
+
+The Makefile uses the tools in ``.venv``; ``VENV=<bin directory>`` points
+it elsewhere.
 
 The examples print estimates rounded to the digits that optimizers and BLAS
 libraries agree on; on another platform a last digit may still differ.

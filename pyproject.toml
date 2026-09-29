@@ -24,11 +24,21 @@ classifiers = [
 ]
 
 [dependency-groups]
-# Pinned so that local runs and CI (.github/workflows/lint.yml) agree:
-# pip install --group lint, or uv sync --group lint.
+# Pinned so that local runs and CI (.github/workflows/lint.yml, docs.yml)
+# agree: pip install --group lint, or uv sync --group lint.
 lint = ["ruff==0.16.9", "fortitude-lint==0.9.2"]
+docs = [
+  "sphinx==9.1.0",
+  "numpydoc==1.11.0",
+  "pydata-sphinx-theme==0.22.0",
+  "myst-parser==5.1.0",
+  "numpy",
+  "cmake==4.4.3",
+  "ninja==1.13.2",
+]
 
 [project.urls]
+Documentation = "https://zelpuz.github.io/statespace/"
 Source = "https://github.com/Zelpuz/statespace"
 Issues = "https://github.com/Zelpuz/statespace/issues"
 

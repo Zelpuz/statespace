@@ -35,8 +35,24 @@ exclude_patterns = ["_build", "README.md"]
 templates_path = ["_templates"]
 
 html_theme = "pydata_sphinx_theme"
-html_title = "statespace"
-html_theme_options = {"navigation_depth": 3, "show_toc_level": 2}
+html_title = f"statespace {release}"
+html_baseurl = "https://zelpuz.github.io/statespace/"
+html_theme_options = {
+    "navigation_depth": 3,
+    "show_toc_level": 2,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/Zelpuz/statespace",
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/ssfortran/",
+            "icon": "fa-brands fa-python",
+        },
+    ],
+}
 
 autosummary_generate = True
 autodoc_default_options = {"members": True}
