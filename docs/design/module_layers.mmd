@@ -1,0 +1,93 @@
+flowchart TB
+  subgraph C10["L10"]
+    capi_extras["capi_extras"]
+  end
+  subgraph C9["L9"]
+    capi_models["capi_models"]
+  end
+  subgraph L8["L8"]
+    capi["capi"]
+    mapped["mapped"]
+  end
+  subgraph L7["L7"]
+    sqrt["sqrt"]
+    diagnostics["diagnostics"]
+    mle["mle"]
+    structural["structural"]
+    arima["arima"]
+  end
+  subgraph L6["L6"]
+    simsmooth["simsmooth"]
+    score["score"]
+    components["components"]
+    callback["callback"]
+  end
+  subgraph L5["L5"]
+    smoothing["smoothing"]
+    em["em"]
+    augmented["augmented"]
+    model["model<br/>(abstract ssm_model_t)"]
+  end
+  subgraph L4["L4"]
+    smoother["smoother"]
+    forecast["forecast"]
+  end
+  subgraph L3["L3"]
+    filter["filter"]
+    restrict["restrict"]
+    collapse["collapse"]
+    dense["dense"]
+  end
+  subgraph L2["L2"]
+    rep["rep<br/>(ssm_rep_t)"]
+  end
+  subgraph L1["L1"]
+    linalg["linalg"]
+    special["special"]
+  end
+  subgraph L0["L0"]
+    kinds["kinds"]
+  end
+  subgraph TP["third_party/lbfgsb"]
+    lbfgsb["lbfgsb_module"]
+  end
+
+  linalg --> kinds
+  special --> kinds
+  rep --> linalg
+  filter --> rep
+  restrict --> rep
+  collapse --> rep
+  dense --> rep
+  smoother --> filter
+  forecast --> filter
+  smoothing --> smoother
+  em --> smoother
+  augmented --> smoother
+  model --> smoother
+  simsmooth --> smoothing
+  score --> model
+  components --> model
+  callback --> model
+  sqrt --> simsmooth
+  diagnostics --> simsmooth
+  diagnostics --> special
+  mle --> score
+  mle --> simsmooth
+  mle --> lbfgsb
+  structural --> components
+  arima --> components
+  mapped --> structural
+  capi --> diagnostics
+  capi --> forecast
+  capi_models --> capi
+  capi_models --> mapped
+  capi_models --> arima
+  capi_models --> callback
+  capi_models --> mle
+  capi_extras --> capi_models
+  capi_extras --> augmented
+  capi_extras --> collapse
+  capi_extras --> em
+  capi_extras --> restrict
+  capi_extras --> sqrt

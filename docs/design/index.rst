@@ -17,6 +17,7 @@ alternatives, and where it lives in the code.
    estimation
    performance
    interfaces
+   dependency_tree
 
 The differences from statsmodels that follow from these decisions are
 listed in :doc:`../statsmodels_differences`.
