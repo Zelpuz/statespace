@@ -11,11 +11,11 @@ Linear Gaussian state space models, following Part I of Durbin and Koopman, *Tim
     - collapsing large observation vectors, and linear restrictions
 - **Likelihood and estimation:**
     - exact, diffuse, concentrated and marginal log likelihoods
-    - maximum likelihood with L-BFGS-B, using DK's analytic score where it applies and     numerical derivatives elsewhere
+    - maximum likelihood with L-BFGS-B, using DK's analytic score where it applies and numerical derivatives elsewhere
     - EM for variance parameters
     - standard errors, and the effect of parameter estimation on the smoothed states
-    - **Simulation, forecasting and diagnostics:** simulation smoothers, forecasts, standardized and auxiliary residuals, and residual tests.
-    - **Built-in models (DK ch. 3):** irregular, level, trend, seasonal (dummy, trigonometric, Harrison–Stevens), cycle, regression and intervention effects, ARIMA, continuous-time components and splines. Components apply to one series or several (SUTSE), and can load on common signals.
+- **Simulation, forecasting and diagnostics:** simulation smoothers, forecasts, standardized and auxiliary residuals, and residual tests.
+- **Built-in models (DK ch. 3):** irregular, level, trend, seasonal (dummy, trigonometric, Harrison–Stevens), cycle, regression and intervention effects, ARIMA, continuous-time components and splines. Components apply to one series or several (SUTSE), and can load on common signals.
 
 **Documentation:** <https://zelpuz.github.io/statespace/>, with a user guide, the examples of DK chapter 8, design notes, the Python and Fortran API references, and the [differences from statsmodels](https://zelpuz.github.io/statespace/statsmodels_differences.html).
 
@@ -47,7 +47,7 @@ import ssfortran as ss
 
 y = np.loadtxt("data/nile.csv", delimiter=",", skiprows=1)[:, 1]  # from this repository
 
-# Build a model with built-in compoenents and defaults...
+# Build a model with built-in components and defaults...
 mod = ss.StructuralModel(y, [ss.Irregular(), ss.Level()])
 res = mod.fit()
 print(res.summary())
@@ -103,8 +103,7 @@ Code is formatted to 88 columns. `ruff format` and `ruff check` cover the Python
 
 ## License
 
-MIT (see [LICENSE](https://github.com/Zelpuz/statespace/blob/master/LICENSE)); third-party notices are in [THIRD_PARTY_NOTICES.md](https://github.com/Zelpuz/statespace/blob/master/THIRD_PARTY_NOTICES.md), and citations in
- [docs/references.md](https://github.com/Zelpuz/statespace/blob/master/docs/references.md).
+MIT (see [LICENSE](https://github.com/Zelpuz/statespace/blob/master/LICENSE)); third-party notices are in [THIRD_PARTY_NOTICES.md](https://github.com/Zelpuz/statespace/blob/master/THIRD_PARTY_NOTICES.md), and citations in [docs/references.md](https://github.com/Zelpuz/statespace/blob/master/docs/references.md).
 
 ## LLM disclosure
 
